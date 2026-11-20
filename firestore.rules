@@ -1,0 +1,635 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // HARDENED GLOBAL PRIMITIVES
+    // =========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'ssmeenakshi058@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin()
+        || (isVerifiedUser() && exists(/databases/$(database)/documents/adminProfiles/$(request.auth.uid)));
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isValidStringList(listVal, maxItems) {
+      return listVal is list
+        && listVal.size() <= maxItems
+        && (listVal.size() == 0 || (listVal[0] is string && listVal[0].size() <= 200));
+    }
+
+    // =========================================================================
+    // ENTITY VALIDATION BLUEPRINTS (ANTI-UPDATE-GAP)
+    // =========================================================================
+
+    function isValidUserAccount(data, uid) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'accountStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoUrl', 'role', 'accountStatus', 'createdAt', 'updatedAt'])
+        && data.uid == uid
+        && isValidId(data.uid)
+        && isValidString(data.email, 3, 254)
+        && isValidString(data.displayName, 1, 120)
+        && isOptionalString(data, 'photoUrl', 1000)
+        && data.role in ['student', 'admin']
+        && data.accountStatus in ['active', 'suspended']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudentProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'fullName', 'email', 'college', 'course',
+          'skills', 'interests', 'profileCompletion', 'accountStatus',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'fullName', 'email', 'photoUrl', 'phone',
+          'college', 'course', 'specialization', 'graduationYear',
+          'semester', 'academicYear', 'skills', 'interests',
+          'preferredIndustry', 'preferredLocation', 'preferredOpportunityType',
+          'resumeUrl', 'resumeFileName', 'linkedInUrl', 'portfolioUrl',
+          'profileCompletion', 'accountStatus', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == uid
+        && isValidId(data.uid)
+        && isValidString(data.fullName, 1, 120)
+        && isValidString(data.email, 3, 254)
+        && isOptionalString(data, 'photoUrl', 1000)
+        && isOptionalString(data, 'phone', 24)
+        && isValidString(data.college, 0, 160)
+        && isValidString(data.course, 0, 120)
+        && isOptionalString(data, 'specialization', 120)
+        && (!('graduationYear' in data) || (data.graduationYear is number && data.graduationYear >= 2000 && data.graduationYear <= 2040))
+        && isOptionalString(data, 'semester', 40)
+        && isOptionalString(data, 'academicYear', 40)
+        && isValidStringList(data.skills, 25)
+        && isValidStringList(data.interests, 15)
+        && isOptionalString(data, 'preferredIndustry', 120)
+        && isOptionalString(data, 'preferredLocation', 120)
+        && isOptionalString(data, 'preferredOpportunityType', 60)
+        && isOptionalString(data, 'resumeUrl', 1000)
+        && isOptionalString(data, 'resumeFileName', 200)
+        && isOptionalString(data, 'linkedInUrl', 400)
+        && isOptionalString(data, 'portfolioUrl', 400)
+        && data.profileCompletion is number
+        && data.profileCompletion >= 0 && data.profileCompletion <= 100
+        && data.accountStatus in ['active', 'suspended']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminProfile(data, uid) {
+      return data.keys().hasAll(['uid', 'fullName', 'email', 'title', 'department', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'fullName', 'email', 'photoUrl', 'title', 'department', 'phone', 'createdAt', 'updatedAt'])
+        && data.uid == uid
+        && isValidId(data.uid)
+        && isValidString(data.fullName, 1, 120)
+        && isValidString(data.email, 3, 254)
+        && isOptionalString(data, 'photoUrl', 1000)
+        && isValidString(data.title, 1, 100)
+        && isValidString(data.department, 1, 100)
+        && isOptionalString(data, 'phone', 24)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCompany(data, companyId) {
+      return data.keys().hasAll(['companyId', 'name', 'industry', 'description', 'location', 'verificationStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['companyId', 'name', 'industry', 'description', 'website', 'location', 'logoUrl', 'verificationStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.companyId == companyId
+        && isValidId(data.companyId)
+        && isValidString(data.name, 1, 160)
+        && isValidString(data.industry, 1, 100)
+        && isValidString(data.description, 1, 2500)
+        && isOptionalString(data, 'website', 400)
+        && isValidString(data.location, 1, 140)
+        && isOptionalString(data, 'logoUrl', 1000)
+        && data.verificationStatus in ['pending', 'verified', 'rejected']
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCompanyContact(data, companyId) {
+      return data.keys().hasAll(['companyId', 'contactName', 'contactEmail', 'updatedAt'])
+        && data.keys().hasOnly(['companyId', 'contactName', 'contactEmail', 'contactPhone', 'updatedAt'])
+        && data.companyId == companyId
+        && isValidString(data.contactName, 0, 120)
+        && isValidString(data.contactEmail, 0, 254)
+        && isOptionalString(data, 'contactPhone', 30)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOpportunity(data, opportunityId) {
+      return data.keys().hasAll([
+          'opportunityId', 'title', 'companyId', 'companyName', 'industry',
+          'category', 'description', 'responsibilities', 'requiredSkills',
+          'eligibility', 'educationQualification', 'workMode', 'location',
+          'isPaid', 'stipendMin', 'stipendMax', 'stipendLabel', 'duration',
+          'deadline', 'requiredDocuments', 'additionalQuestions', 'allowReapply',
+          'status', 'isVerified', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'opportunityId', 'title', 'companyId', 'companyName', 'companyLogoUrl',
+          'industry', 'category', 'description', 'responsibilities', 'requiredSkills',
+          'eligibility', 'educationQualification', 'workMode', 'location',
+          'isPaid', 'stipendMin', 'stipendMax', 'stipendLabel', 'duration',
+          'openings', 'deadline', 'requiredDocuments', 'additionalQuestions',
+          'allowReapply', 'status', 'isVerified', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && data.opportunityId == opportunityId
+        && isValidId(data.opportunityId)
+        && isValidString(data.title, 2, 180)
+        && isValidId(data.companyId)
+        && isValidString(data.companyName, 1, 160)
+        && isOptionalString(data, 'companyLogoUrl', 1000)
+        && isValidString(data.industry, 1, 100)
+        && data.category in ['internship', 'part_time', 'entry_level', 'live_project', 'skill_building', 'campus_event']
+        && isValidString(data.description, 10, 4000)
+        && isValidStringList(data.responsibilities, 15)
+        && isValidStringList(data.requiredSkills, 20)
+        && isValidString(data.eligibility, 0, 1000)
+        && isValidString(data.educationQualification, 0, 200)
+        && data.workMode in ['on_site', 'remote', 'hybrid']
+        && isValidString(data.location, 1, 140)
+        && data.isPaid is bool
+        && data.stipendMin is number && data.stipendMin >= 0
+        && data.stipendMax is number && data.stipendMax >= data.stipendMin
+        && isValidString(data.stipendLabel, 1, 100)
+        && isValidString(data.duration, 1, 100)
+        && (!('openings' in data) || (data.openings is number && data.openings >= 1 && data.openings <= 10000))
+        && isValidString(data.deadline, 4, 30)
+        && isValidStringList(data.requiredDocuments, 10)
+        && isValidStringList(data.additionalQuestions, 5)
+        && data.allowReapply is bool
+        && data.status in ['pending', 'verified', 'rejected', 'expired', 'closed']
+        && data.isVerified is bool
+        && (data.isVerified == false || data.status == 'verified')
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidApplication(data, applicationId) {
+      return data.keys().hasAll([
+          'applicationId', 'applicationCode', 'opportunityId', 'opportunityTitle',
+          'companyName', 'category', 'studentUid', 'studentName', 'studentEmail',
+          'college', 'course', 'skills', 'resumeUrl', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'applicationId', 'applicationCode', 'opportunityId', 'opportunityTitle',
+          'companyName', 'category', 'studentUid', 'studentName', 'studentEmail',
+          'studentPhone', 'college', 'course', 'skills', 'resumeUrl', 'resumeFileName',
+          'coverLetter', 'additionalAnswers', 'status', 'adminNotes', 'createdAt', 'updatedAt'
+        ])
+        && data.applicationId == applicationId
+        && isValidId(data.applicationId)
+        && isValidString(data.applicationCode, 4, 40)
+        && isValidId(data.opportunityId)
+        && isValidString(data.opportunityTitle, 1, 180)
+        && isValidString(data.companyName, 1, 160)
+        && data.category in ['internship', 'part_time', 'entry_level', 'live_project', 'skill_building', 'campus_event']
+        && isValidId(data.studentUid)
+        && isValidString(data.studentName, 1, 120)
+        && isValidString(data.studentEmail, 3, 254)
+        && isOptionalString(data, 'studentPhone', 24)
+        && isValidString(data.college, 1, 160)
+        && isValidString(data.course, 1, 120)
+        && isValidStringList(data.skills, 25)
+        && isValidString(data.resumeUrl, 1, 1000)
+        && isOptionalString(data, 'resumeFileName', 200)
+        && isOptionalString(data, 'coverLetter', 3000)
+        && (!('additionalAnswers' in data) || isValidStringList(data.additionalAnswers, 5))
+        && data.status in ['submitted', 'under_review', 'shortlisted', 'interview_scheduled', 'selected', 'rejected', 'withdrawn']
+        && isOptionalString(data, 'adminNotes', 1500)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSavedOpportunity(data, savedId) {
+      return data.keys().hasAll([
+          'savedId', 'studentUid', 'opportunityId', 'opportunityTitle',
+          'companyName', 'category', 'location', 'deadline', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'savedId', 'studentUid', 'opportunityId', 'opportunityTitle',
+          'companyName', 'category', 'location', 'deadline', 'createdAt'
+        ])
+        && data.savedId == savedId
+        && isValidId(data.savedId)
+        && isValidId(data.studentUid)
+        && isValidId(data.opportunityId)
+        && isValidString(data.opportunityTitle, 1, 180)
+        && isValidString(data.companyName, 1, 160)
+        && isValidString(data.category, 1, 60)
+        && isValidString(data.location, 1, 140)
+        && isValidString(data.deadline, 4, 30)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCampusEvent(data, eventId) {
+      return data.keys().hasAll([
+          'eventId', 'title', 'eventType', 'organizer', 'description',
+          'venue', 'location', 'mode', 'eventDate', 'eventTime',
+          'registrationDeadline', 'status', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'eventId', 'title', 'eventType', 'organizer', 'description',
+          'venue', 'location', 'mode', 'eventDate', 'eventTime',
+          'registrationDeadline', 'capacity', 'registrationLink', 'bannerUrl',
+          'status', 'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && data.eventId == eventId
+        && isValidId(data.eventId)
+        && isValidString(data.title, 2, 180)
+        && data.eventType in ['campus_event', 'career_workshop', 'placement_prep', 'networking', 'skill_session']
+        && isValidString(data.organizer, 1, 140)
+        && isValidString(data.description, 10, 3000)
+        && isValidString(data.venue, 1, 160)
+        && isValidString(data.location, 1, 140)
+        && data.mode in ['on_site', 'online', 'hybrid']
+        && isValidString(data.eventDate, 4, 30)
+        && isValidString(data.eventTime, 1, 40)
+        && isValidString(data.registrationDeadline, 4, 30)
+        && (!('capacity' in data) || (data.capacity is number && data.capacity >= 1 && data.capacity <= 50000))
+        && isOptionalString(data, 'registrationLink', 400)
+        && isOptionalString(data, 'bannerUrl', 1000)
+        && data.status in ['upcoming', 'completed', 'cancelled']
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data, notificationId) {
+      return data.keys().hasAll([
+          'notificationId', 'recipientUid', 'recipientRole', 'type',
+          'title', 'message', 'isRead', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'notificationId', 'recipientUid', 'recipientRole', 'type',
+          'title', 'message', 'relatedId', 'isRead', 'createdAt'
+        ])
+        && data.notificationId == notificationId
+        && isValidId(data.notificationId)
+        && isValidId(data.recipientUid)
+        && data.recipientRole in ['student', 'admin']
+        && isValidString(data.type, 2, 60)
+        && isValidString(data.title, 2, 180)
+        && isValidString(data.message, 2, 600)
+        && isOptionalString(data, 'relatedId', 128)
+        && data.isRead is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidReport(data, reportId) {
+      return data.keys().hasAll([
+          'reportId', 'opportunityId', 'opportunityTitle', 'companyName',
+          'reportedByUid', 'reportedByName', 'reason', 'details',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'reportId', 'opportunityId', 'opportunityTitle', 'companyName',
+          'reportedByUid', 'reportedByName', 'reason', 'details',
+          'status', 'adminActionNote', 'createdAt', 'updatedAt'
+        ])
+        && data.reportId == reportId
+        && isValidId(data.reportId)
+        && isValidId(data.opportunityId)
+        && isValidString(data.opportunityTitle, 1, 180)
+        && isValidString(data.companyName, 1, 160)
+        && isValidId(data.reportedByUid)
+        && isValidString(data.reportedByName, 1, 120)
+        && data.reason in ['misleading_info', 'unpaid_disguised', 'fee_demanded', 'fake_company', 'expired_listing', 'other']
+        && isValidString(data.details, 10, 1500)
+        && data.status in ['open', 'investigating', 'resolved', 'dismissed']
+        && isOptionalString(data, 'adminActionNote', 1000)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // =========================================================================
+    // COLLECTION MATCH BLOCKS
+    // =========================================================================
+
+    // 1. Users Collection (PII & RBAC Protected)
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidUserAccount(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner(uid) && incoming().role == 'student' && incoming().accountStatus == 'active')
+          || isAdmin()
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidUserAccount(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && incoming().role == existing().role
+            && incoming().accountStatus == existing().accountStatus
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(uid) && isAdmin();
+    }
+
+    // 2. Student Profiles Collection (PII Protected)
+    match /studentProfiles/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidStudentProfile(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner(uid) && incoming().accountStatus == 'active')
+          || isAdmin()
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidStudentProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isOwner(uid)
+            && existing().accountStatus == 'active'
+            && incoming().accountStatus == existing().accountStatus
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName', 'photoUrl', 'phone', 'college', 'course',
+              'specialization', 'graduationYear', 'semester', 'academicYear',
+              'skills', 'interests', 'preferredIndustry', 'preferredLocation',
+              'preferredOpportunityType', 'resumeUrl', 'resumeFileName',
+              'linkedInUrl', 'portfolioUrl', 'profileCompletion', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(uid) && isAdmin();
+    }
+
+    // 3. Admin Profiles Collection (Trusted Admin Directory Only)
+    match /adminProfiles/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidAdminProfile(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isVerifiedUser()
+        && isValidId(uid)
+        && isValidAdminProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if isValidId(uid) && isAdmin();
+    }
+
+    // 4. Companies Collection (Public Non-PII Info + Private Contact Subcollection)
+    match /companies/{companyId} {
+      allow get: if isValidId(companyId) && (existing().verificationStatus == 'verified' || isAdmin());
+      allow list: if existing().verificationStatus == 'verified' || isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(companyId)
+        && isValidCompany(incoming(), companyId)
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isVerifiedUser()
+        && isValidId(companyId)
+        && isValidCompany(incoming(), companyId)
+        && incoming().companyId == existing().companyId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if isValidId(companyId) && isAdmin();
+
+      match /private/{docId} {
+        allow get: if isValidId(companyId) && isValidId(docId) && isAdmin();
+        allow list: if isAdmin();
+        allow create, update: if isVerifiedUser()
+          && isValidId(companyId)
+          && isValidId(docId)
+          && isValidCompanyContact(incoming(), companyId)
+          && incoming().updatedAt == request.time
+          && isAdmin()
+          && (
+            exists(/databases/$(database)/documents/companies/$(companyId))
+            || existsAfter(/databases/$(database)/documents/companies/$(companyId))
+          );
+        allow delete: if isValidId(companyId) && isValidId(docId) && isAdmin();
+      }
+    }
+
+    // 5. Opportunities Collection (Verified Public Read, Admin Full Control)
+    match /opportunities/{opportunityId} {
+      allow get: if isValidId(opportunityId) && (existing().status == 'verified' || isAdmin());
+      allow list: if existing().status == 'verified' || isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(opportunityId)
+        && isValidOpportunity(incoming(), opportunityId)
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin()
+        && (
+          exists(/databases/$(database)/documents/companies/$(incoming().companyId))
+          || existsAfter(/databases/$(database)/documents/companies/$(incoming().companyId))
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(opportunityId)
+        && isValidOpportunity(incoming(), opportunityId)
+        && incoming().opportunityId == existing().opportunityId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if isValidId(opportunityId) && isAdmin();
+    }
+
+    // 6. Applications Collection (Active Student Create Own, Admin Review & Status Update Only)
+    match /applications/{applicationId} {
+      allow get: if isValidId(applicationId)
+        && (isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(applicationId)
+        && isValidApplication(incoming(), applicationId)
+        && incoming().studentUid == request.auth.uid
+        && incoming().status == 'submitted'
+        && !('adminNotes' in incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/studentProfiles/$(request.auth.uid))
+        && get(/databases/$(database)/documents/studentProfiles/$(request.auth.uid)).data.accountStatus == 'active'
+        && exists(/databases/$(database)/documents/opportunities/$(incoming().opportunityId))
+        && get(/databases/$(database)/documents/opportunities/$(incoming().opportunityId)).data.status == 'verified';
+      allow update: if isVerifiedUser()
+        && isValidId(applicationId)
+        && isValidApplication(incoming(), applicationId)
+        && incoming().applicationId == existing().applicationId
+        && incoming().opportunityId == existing().opportunityId
+        && incoming().studentUid == existing().studentUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdmin()
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNotes', 'updatedAt']);
+      allow delete: if isValidId(applicationId) && isAdmin();
+    }
+
+    // 7. Saved Opportunities Collection (Student Bookmarks)
+    match /savedOpportunities/{savedId} {
+      allow get: if isValidId(savedId)
+        && (isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(savedId)
+        && isValidSavedOpportunity(incoming(), savedId)
+        && incoming().studentUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/opportunities/$(incoming().opportunityId));
+      allow update: if false;
+      allow delete: if isValidId(savedId)
+        && (isAdmin() || (isVerifiedUser() && existing().studentUid == request.auth.uid));
+    }
+
+    // 8. Campus Events Collection
+    match /events/{eventId} {
+      allow get: if isValidId(eventId)
+        && (existing().status in ['upcoming', 'completed'] || isAdmin());
+      allow list: if existing().status in ['upcoming', 'completed'] || isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(eventId)
+        && isValidCampusEvent(incoming(), eventId)
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isVerifiedUser()
+        && isValidId(eventId)
+        && isValidCampusEvent(incoming(), eventId)
+        && incoming().eventId == existing().eventId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if isValidId(eventId) && isAdmin();
+    }
+
+    // 9. Notifications Collection
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId)
+        && (
+          (isAdmin() && existing().recipientRole == 'admin')
+          || (isSignedIn() && existing().recipientUid == request.auth.uid && existing().recipientRole == 'student')
+        );
+      allow list: if (isAdmin() && existing().recipientRole == 'admin')
+        || (isSignedIn() && existing().recipientUid == request.auth.uid && existing().recipientRole == 'student');
+      allow create: if isVerifiedUser()
+        && isValidId(notificationId)
+        && isValidNotification(incoming(), notificationId)
+        && incoming().isRead == false
+        && incoming().createdAt == request.time
+        && (
+          isAdmin()
+          || (incoming().recipientUid == request.auth.uid && incoming().recipientRole == 'student')
+          || (incoming().recipientUid == 'admins' && incoming().recipientRole == 'admin')
+        );
+      allow update: if isVerifiedUser()
+        && isValidId(notificationId)
+        && isValidNotification(incoming(), notificationId)
+        && incoming().notificationId == existing().notificationId
+        && incoming().recipientUid == existing().recipientUid
+        && incoming().recipientRole == existing().recipientRole
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
+        && (
+          (isAdmin() && existing().recipientRole == 'admin')
+          || (existing().recipientUid == request.auth.uid && existing().recipientRole == 'student')
+        );
+      allow delete: if isValidId(notificationId) && isAdmin();
+    }
+
+    // 10. Opportunity Safety Reports Collection
+    match /reports/{reportId} {
+      allow get: if isValidId(reportId)
+        && (isAdmin() || (isSignedIn() && existing().reportedByUid == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && existing().reportedByUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(reportId)
+        && isValidReport(incoming(), reportId)
+        && incoming().reportedByUid == request.auth.uid
+        && incoming().status == 'open'
+        && !('adminActionNote' in incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/opportunities/$(incoming().opportunityId));
+      allow update: if isVerifiedUser()
+        && isValidId(reportId)
+        && isValidReport(incoming(), reportId)
+        && incoming().reportId == existing().reportId
+        && incoming().opportunityId == existing().opportunityId
+        && incoming().reportedByUid == existing().reportedByUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdmin()
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminActionNote', 'updatedAt']);
+      allow delete: if isValidId(reportId) && isAdmin();
+    }
+  }
+}

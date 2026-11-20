@@ -1,0 +1,8 @@
+{
+  "name": "CampusConnect",
+  "description": "Discover Opportunities. Build Your Career. A student-focused digital career platform connecting college students in Dehradun and across India with verified internships, part-time jobs, live projects, entry-level roles, and campus events.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
