@@ -16,6 +16,7 @@ export type WorkMode = 'on_site' | 'remote' | 'hybrid';
 export type OpportunityStatus =
   | 'pending'
   | 'verified'
+  | 'demo_approved'
   | 'rejected'
   | 'expired'
   | 'closed';
@@ -29,7 +30,7 @@ export type ApplicationStatus =
   | 'rejected'
   | 'withdrawn';
 
-export type CompanyVerificationStatus = 'pending' | 'verified' | 'rejected';
+export type CompanyVerificationStatus = 'pending' | 'verified' | 'rejected' | 'demo';
 
 export type EventType =
   | 'campus_event'
@@ -39,7 +40,7 @@ export type EventType =
   | 'skill_session';
 
 export type EventMode = 'on_site' | 'online' | 'hybrid';
-export type EventStatus = 'upcoming' | 'completed' | 'cancelled';
+export type EventStatus = 'upcoming' | 'completed' | 'cancelled' | 'demo_approved';
 
 export type ReportReason =
   | 'misleading_info'
@@ -109,7 +110,11 @@ export interface Company {
   website?: string;
   location: string;
   logoUrl?: string;
+  companySize?: string;
   verificationStatus: CompanyVerificationStatus;
+  isDemo?: boolean;
+  demoLabel?: string;
+  seedVersion?: string;
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -131,6 +136,8 @@ export interface Opportunity {
   companyLogoUrl?: string;
   industry: string;
   category: OpportunityCategory;
+  subCategory?: string;
+  opportunityType?: string;
   description: string;
   responsibilities: string[];
   requiredSkills: string[];
@@ -150,8 +157,53 @@ export interface Opportunity {
   allowReapply: boolean;
   status: OpportunityStatus;
   isVerified: boolean;
+  isDemo?: boolean;
+  demoLabel?: string;
+  seedVersion?: string;
+  createdMonth?: string;
   createdBy: string;
   createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface SkillProgram {
+  programId: string;
+  opportunityId: string;
+  title: string;
+  providerName: string;
+  companyId: string;
+  topic: string;
+  description: string;
+  skills: string[];
+  location: string;
+  workMode: WorkMode;
+  isPaid: boolean;
+  feeLabel: string;
+  duration: string;
+  deadline: string;
+  level: string;
+  status: 'pending' | 'verified' | 'demo_approved' | 'closed';
+  isDemo?: boolean;
+  demoLabel?: string;
+  seedVersion?: string;
+  createdMonth?: string;
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface DemoSeedMetadata {
+  metaId: string;
+  seedVersion: string;
+  companiesCount: number;
+  internshipsCount: number;
+  partTimeCount: number;
+  entryLevelCount: number;
+  liveProjectsCount: number;
+  eventsCount: number;
+  skillProgramsCount: number;
+  totalDemoRecords: number;
+  generatedBy: string;
   updatedAt: Timestamp;
 }
 
@@ -175,6 +227,8 @@ export interface Application {
   additionalAnswers?: string[];
   status: ApplicationStatus;
   adminNotes?: string;
+  isDemo?: boolean;
+  demoLabel?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -188,6 +242,7 @@ export interface SavedOpportunity {
   category: string;
   location: string;
   deadline: string;
+  isDemo?: boolean;
   createdAt: Timestamp;
 }
 
@@ -195,11 +250,14 @@ export interface CampusEvent {
   eventId: string;
   title: string;
   eventType: EventType;
+  subCategory?: string;
   organizer: string;
   description: string;
   venue: string;
   location: string;
   mode: EventMode;
+  isPaid?: boolean;
+  feeLabel?: string;
   eventDate: string;
   eventTime: string;
   registrationDeadline: string;
@@ -207,6 +265,10 @@ export interface CampusEvent {
   registrationLink?: string;
   bannerUrl?: string;
   status: EventStatus;
+  isDemo?: boolean;
+  demoLabel?: string;
+  seedVersion?: string;
+  createdMonth?: string;
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -242,9 +304,9 @@ export interface OpportunityReport {
 export const CATEGORY_LABELS: Record<OpportunityCategory, string> = {
   internship: 'Internship',
   part_time: 'Part-Time Job',
-  entry_level: 'Entry-Level Job',
+  entry_level: 'Full-Time / Entry-Level',
   live_project: 'Live Project',
-  skill_building: 'Skill-Building',
+  skill_building: 'Skill Development',
   campus_event: 'Campus Event',
 };
 
@@ -257,6 +319,7 @@ export const WORK_MODE_LABELS: Record<WorkMode, string> = {
 export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
   pending: 'Pending Review',
   verified: 'Verified',
+  demo_approved: 'Demo Approved',
   rejected: 'Rejected',
   expired: 'Expired',
   closed: 'Closed',
@@ -299,6 +362,11 @@ export const CAMPUS_ASSETS = {
 export const PLATFORM_DISCLAIMER =
   'CampusConnect helps students discover career opportunities. Final selection decisions are made by the respective companies.';
 
+export const DEMO_LISTING_NOTICE = 'DEMO LISTING — NOT A LIVE VACANCY';
+
+export const DEMO_APPLICATION_NOTICE =
+  'DEMO APPLICATION — This is a simulated application for demonstration purposes. It will not be sent to a real employer.';
+
 export const BOOTSTRAPPED_ADMIN_EMAIL = 'ssmeenakshi058@gmail.com';
 
 export interface RuleBasedMatchResult {
@@ -306,10 +374,6 @@ export interface RuleBasedMatchResult {
   reasons: string[];
 }
 
-/**
- * Transparent rule-based matching using student skills, education,
- * preferred location, industry, and opportunity category.
- */
 export function computeRuleBasedMatch(
   opportunity: Opportunity,
   profile: StudentProfile | null
@@ -343,7 +407,9 @@ export function computeRuleBasedMatch(
   const oppLoc = opportunity.location.trim().toLowerCase();
   if (prefLoc && (oppLoc.includes(prefLoc) || opportunity.workMode === 'remote')) {
     score += 15;
-    reasons.push(opportunity.workMode === 'remote' ? 'Remote friendly' : `Location (${opportunity.location})`);
+    reasons.push(
+      opportunity.workMode === 'remote' ? 'Remote friendly' : `Location (${opportunity.location})`
+    );
   }
 
   const prefIndustry = (profile.preferredIndustry || '').trim().toLowerCase();
@@ -351,7 +417,10 @@ export function computeRuleBasedMatch(
   const oppIndustry = opportunity.industry.trim().toLowerCase();
   if (
     (prefIndustry && oppIndustry.includes(prefIndustry)) ||
-    studentInterests.some((interest) => oppIndustry.includes(interest) || opportunity.title.toLowerCase().includes(interest))
+    studentInterests.some(
+      (interest) =>
+        oppIndustry.includes(interest) || opportunity.title.toLowerCase().includes(interest)
+    )
   ) {
     score += 10;
     reasons.push(`Industry (${opportunity.industry})`);
@@ -381,7 +450,12 @@ export function formatDeadlineRelative(deadlineIso: string): {
   }
   const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays < 0) {
-    return { label: `Closed ${Math.abs(diffDays)}d ago`, isUrgent: false, isExpired: true, daysLeft: diffDays };
+    return {
+      label: `Closed ${Math.abs(diffDays)}d ago`,
+      isUrgent: false,
+      isExpired: true,
+      daysLeft: diffDays,
+    };
   }
   if (diffDays === 0) {
     return { label: 'Closes today', isUrgent: true, isExpired: false, daysLeft: 0 };

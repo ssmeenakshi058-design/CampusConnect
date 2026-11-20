@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, CheckCircle2, Clock, ShieldCheck, XCircle } from 'lucide-react';
+import { Building2, CheckCircle2, Clock, Info, ShieldCheck, XCircle } from 'lucide-react';
 
 export function ImageWithFallback({
   src,
@@ -90,10 +90,20 @@ export function CompanyAvatar({
 export function VerifiedInlineStatus({
   isVerified,
   status,
+  isDemo,
 }: {
   isVerified: boolean;
   status: string;
+  isDemo?: boolean;
 }) {
+  if (isDemo || status === 'demo_approved' || status === 'demo') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 whitespace-nowrap shrink-0">
+        <Info className="w-3.5 h-3.5" />
+        Demo Data
+      </span>
+    );
+  }
   if (isVerified && status === 'verified') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 whitespace-nowrap shrink-0">
@@ -131,12 +141,29 @@ export function StatusTextLabel({ status }: { status: string }) {
   let colorClass = 'text-slate-700';
   if (['verified', 'selected', 'active', 'resolved', 'upcoming'].includes(normalized)) {
     colorClass = 'text-emerald-700';
-  } else if (['shortlisted', 'interview_scheduled', 'under_review', 'investigating', 'pending'].includes(normalized)) {
+  } else if (
+    [
+      'shortlisted',
+      'interview_scheduled',
+      'under_review',
+      'investigating',
+      'pending',
+      'demo',
+      'demo_approved',
+    ].includes(normalized)
+  ) {
     colorClass = 'text-amber-700';
-  } else if (['rejected', 'suspended', 'closed', 'expired', 'cancelled', 'open'].includes(normalized)) {
+  } else if (
+    ['rejected', 'suspended', 'closed', 'expired', 'cancelled', 'open'].includes(normalized)
+  ) {
     colorClass = 'text-red-700';
   }
-  const formatted = status.replace(/_/g, ' ');
+  const formatted =
+    normalized === 'demo_approved'
+      ? 'Demo Listing'
+      : normalized === 'demo'
+        ? 'Demo Company'
+        : status.replace(/_/g, ' ');
   return (
     <span className={`text-xs font-semibold capitalize whitespace-nowrap ${colorClass}`}>
       {formatted}

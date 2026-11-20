@@ -4,6 +4,10 @@ import { ArrowRight, Calendar } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { toggleSavedOpportunity } from '../../lib/firestoreService';
+import {
+  fetchNextOpportunityChunk,
+  getPublishedOpportunityCount,
+} from '../../lib/marketplaceStore';
 import { useAuth } from '../../context/AuthContext';
 import {
   computeRuleBasedMatch,
@@ -18,6 +22,7 @@ import { ApplyModal } from '../../components/ApplyModal';
 export function StudentDashboardHome() {
   const { user, studentProfile } = useAuth();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [totalAvailableCount, setTotalAvailableCount] = useState<number>(0);
   const [applications, setApplications] = useState<Application[]>([]);
   const [savedList, setSavedList] = useState<SavedOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,19 +30,22 @@ export function StudentDashboardHome() {
 
   useEffect(() => {
     if (!user) return;
+    let active = true;
 
-    const unsubOpps = onSnapshot(
-      query(collection(db, 'opportunities'), where('status', '==', 'verified')),
-      (snap) => {
-        setOpportunities(
-          snap.docs
-            .map((d) => d.data() as Opportunity)
-            .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0))
-        );
-        setLoading(false);
-      },
-      (err) => handleFirestoreError(err, OperationType.LIST, 'opportunities')
-    );
+    async function loadOpportunities() {
+      try {
+        const [chunk, count] = await Promise.all([
+          fetchNextOpportunityChunk(),
+          getPublishedOpportunityCount(),
+        ]);
+        if (!active) return;
+        setOpportunities(chunk.items);
+        setTotalAvailableCount(count || chunk.items.length);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    loadOpportunities();
 
     const unsubApps = onSnapshot(
       query(collection(db, 'applications'), where('studentUid', '==', user.uid)),
@@ -52,7 +60,7 @@ export function StudentDashboardHome() {
     );
 
     return () => {
-      unsubOpps();
+      active = false;
       unsubApps();
       unsubSaved();
     };
@@ -73,7 +81,7 @@ export function StudentDashboardHome() {
     });
 
     return {
-      totalAvailable: opportunities.length,
+      totalAvailable: totalAvailableCount || opportunities.length,
       newOpportunities: newOpps.length,
       submitted: applications.length,
       shortlisted: shortlisted.length,
@@ -81,7 +89,7 @@ export function StudentDashboardHome() {
       upcomingList: upcomingDeadlines.slice(0, 4),
       saved: savedList.length,
     };
-  }, [opportunities, applications, savedList]);
+  }, [opportunities, totalAvailableCount, applications, savedList]);
 
   const recommended = useMemo(() => {
     return opportunities

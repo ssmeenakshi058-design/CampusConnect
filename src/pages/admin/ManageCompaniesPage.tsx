@@ -8,7 +8,7 @@ import {
   saveCompany,
 } from '../../lib/firestoreService';
 import { useAuth } from '../../context/AuthContext';
-import type { Company, CompanyVerificationStatus } from '../../types/campus';
+import type { Company } from '../../types/campus';
 import { CompanyAvatar, StatusTextLabel } from '../../components/BrandMark';
 
 export function ManageCompaniesPage() {
@@ -24,8 +24,10 @@ export function ManageCompaniesPage() {
   const [website, setWebsite] = useState('');
   const [location, setLocation] = useState('Dehradun, Uttarakhand');
   const [logoUrl, setLogoUrl] = useState('');
-  const [verificationStatus, setVerificationStatus] =
-    useState<CompanyVerificationStatus>('verified');
+  const [verificationStatus, setVerificationStatus] = useState<'pending' | 'verified' | 'rejected'>(
+    'verified'
+  );
+  const [dataScope, setDataScope] = useState<'all' | 'real' | 'demo'>('all');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -70,7 +72,9 @@ export function ManageCompaniesPage() {
     setWebsite(comp.website || '');
     setLocation(comp.location);
     setLogoUrl(comp.logoUrl || '');
-    setVerificationStatus(comp.verificationStatus);
+    setVerificationStatus(
+      comp.verificationStatus === 'demo' ? 'pending' : comp.verificationStatus
+    );
     setContactName('');
     setContactEmail('');
     setContactPhone('');
@@ -131,12 +135,46 @@ export function ManageCompaniesPage() {
         </button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            { id: 'all', label: `All Companies (${companies.length})` },
+            {
+              id: 'real',
+              label: `Real Partners (${companies.filter((c) => !c.isDemo && c.verificationStatus !== 'demo').length})`,
+            },
+            {
+              id: 'demo',
+              label: `Fictional Demo Companies (${companies.filter((c) => Boolean(c.isDemo || c.verificationStatus === 'demo')).length})`,
+            },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setDataScope(tab.id)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+              dataScope === tab.id
+                ? 'bg-slate-950 text-white border-slate-950'
+                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         {loading ? (
           <div className="p-10 text-center text-xs text-slate-500">Loading companies...</div>
-        ) : companies.length === 0 ? (
+        ) : companies.filter((c) => {
+            const isDemoComp = Boolean(c.isDemo || c.verificationStatus === 'demo');
+            if (dataScope === 'real' && isDemoComp) return false;
+            if (dataScope === 'demo' && !isDemoComp) return false;
+            return true;
+          }).length === 0 ? (
           <div className="p-10 text-center text-xs text-slate-500">
-            No companies added yet. Add your first partner company before posting opportunities.
+            No companies found in this filter.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -151,44 +189,60 @@ export function ManageCompaniesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {companies.map((comp) => (
-                  <tr key={comp.companyId} className="hover:bg-slate-50/60">
-                    <td className="py-3.5 px-5">
-                      <div className="flex items-center gap-3">
-                        <CompanyAvatar name={comp.name} logoUrl={comp.logoUrl} size="sm" />
-                        <div>
-                          <p className="font-semibold text-slate-950">{comp.name}</p>
-                          {comp.website && (
-                            <p className="text-slate-500 truncate max-w-[220px]">{comp.website}</p>
+                {companies
+                  .filter((c) => {
+                    const isDemoComp = Boolean(c.isDemo || c.verificationStatus === 'demo');
+                    if (dataScope === 'real' && isDemoComp) return false;
+                    if (dataScope === 'demo' && !isDemoComp) return false;
+                    return true;
+                  })
+                  .map((comp) => {
+                    const isDemoComp = Boolean(comp.isDemo || comp.verificationStatus === 'demo');
+                    return (
+                      <tr key={comp.companyId} className="hover:bg-slate-50/60">
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-3">
+                            <CompanyAvatar name={comp.name} logoUrl={comp.logoUrl} size="sm" />
+                            <div>
+                              <p className="font-semibold text-slate-950">{comp.name}</p>
+                              {comp.companySize ? (
+                                <p className="text-slate-500">{comp.companySize}</p>
+                              ) : comp.website ? (
+                                <p className="text-slate-500 truncate max-w-[220px]">
+                                  {comp.website}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-5 text-slate-700">{comp.industry}</td>
+                        <td className="py-3.5 px-5 text-slate-700">{comp.location}</td>
+                        <td className="py-3.5 px-5">
+                          <StatusTextLabel status={comp.verificationStatus} />
+                        </td>
+                        <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-3">
+                          {!isDemoComp && (
+                            <button
+                              type="button"
+                              onClick={() => openEdit(comp)}
+                              className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
                           )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-5 text-slate-700">{comp.industry}</td>
-                    <td className="py-3.5 px-5 text-slate-700">{comp.location}</td>
-                    <td className="py-3.5 px-5">
-                      <StatusTextLabel status={comp.verificationStatus} />
-                    </td>
-                    <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-3">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(comp)}
-                        className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteCompany(comp.companyId)}
-                        className="inline-flex items-center gap-1 font-semibold text-red-700 hover:underline"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                          <button
+                            type="button"
+                            onClick={() => deleteCompany(comp.companyId)}
+                            className="inline-flex items-center gap-1 font-semibold text-red-700 hover:underline"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -259,7 +313,7 @@ export function ManageCompaniesPage() {
                   <select
                     value={verificationStatus}
                     onChange={(e) =>
-                      setVerificationStatus(e.target.value as CompanyVerificationStatus)
+                      setVerificationStatus(e.target.value as 'pending' | 'verified' | 'rejected')
                     }
                     className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
                   >

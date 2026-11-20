@@ -4,7 +4,11 @@ import {
   submitStudentApplication,
   uploadResumeToStorage,
 } from '../lib/firestoreService';
-import type { Opportunity, StudentProfile } from '../types/campus';
+import {
+  DEMO_APPLICATION_NOTICE,
+  type Opportunity,
+  type StudentProfile,
+} from '../types/campus';
 
 interface ApplyModalProps {
   opportunity: Opportunity;
@@ -14,15 +18,23 @@ interface ApplyModalProps {
 }
 
 export function ApplyModal({ opportunity, profile, onClose, onSubmitted }: ApplyModalProps) {
+  const isDemoListing = Boolean(opportunity.isDemo || opportunity.status === 'demo_approved');
   const [step, setStep] = useState<'form' | 'review' | 'success'>('form');
   const [studentName, setStudentName] = useState(profile.fullName || '');
   const [studentEmail, setStudentEmail] = useState(profile.email || '');
-  const [studentPhone, setStudentPhone] = useState(profile.phone || '');
-  const [college, setCollege] = useState(profile.college || '');
-  const [course, setCourse] = useState(profile.course || '');
+  const [studentPhone, setStudentPhone] = useState(isDemoListing ? '' : profile.phone || '');
+  const [college, setCollege] = useState(
+    profile.college || (isDemoListing ? 'Dehradun Campus (Demo)' : '')
+  );
+  const [course, setCourse] = useState(profile.course || (isDemoListing ? 'Undergraduate / MBA' : ''));
   const [skillsText, setSkillsText] = useState((profile.skills || []).join(', '));
-  const [resumeUrl, setResumeUrl] = useState(profile.resumeUrl || '');
-  const [resumeFileName, setResumeFileName] = useState(profile.resumeFileName || '');
+  const [resumeUrl, setResumeUrl] = useState(
+    profile.resumeUrl ||
+      (isDemoListing ? 'https://campusconnect.demo/sample-student-resume.pdf' : '')
+  );
+  const [resumeFileName, setResumeFileName] = useState(
+    profile.resumeFileName || (isDemoListing ? 'sample-demo-resume.pdf' : '')
+  );
   const [coverLetter, setCoverLetter] = useState('');
   const [additionalAnswers, setAdditionalAnswers] = useState<string[]>(
     (opportunity.additionalQuestions || []).map(() => '')
@@ -134,13 +146,21 @@ export function ApplyModal({ opportunity, profile, onClose, onSubmitted }: Apply
           </button>
         </div>
 
+        {isDemoListing && (
+          <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 text-xs text-amber-950 font-medium leading-relaxed">
+            {DEMO_APPLICATION_NOTICE}
+          </div>
+        )}
+
         {step === 'success' ? (
           <div className="p-8 text-center">
             <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <h3 className="text-xl font-display font-bold text-slate-950">
-              Your application has been submitted successfully!
+              {isDemoListing
+                ? 'Demo application recorded successfully!'
+                : 'Your application has been submitted successfully!'}
             </h3>
             <p className="mt-2 text-sm text-slate-600">
               Application Reference ID:{' '}
@@ -149,7 +169,9 @@ export function ApplyModal({ opportunity, profile, onClose, onSubmitted }: Apply
               </span>
             </p>
             <p className="mt-3 text-xs text-slate-500 max-w-md mx-auto">
-              You can monitor review progress and status updates anytime under My Applications.
+              {isDemoListing
+                ? 'This simulated demo application is visible in your My Applications tab for demonstration purposes and is not forwarded to any real employer.'
+                : 'You can monitor review progress and status updates anytime under My Applications.'}
             </p>
             <div className="mt-6">
               <button
@@ -282,19 +304,21 @@ export function ApplyModal({ opportunity, profile, onClose, onSubmitted }: Apply
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  maxLength={24}
-                  placeholder="+91 98765 43210"
-                  value={studentPhone}
-                  onChange={(e) => setStudentPhone(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700"
-                />
-              </div>
+              {!isDemoListing && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    maxLength={24}
+                    placeholder="+91 98765 43210"
+                    value={studentPhone}
+                    onChange={(e) => setStudentPhone(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700"
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   College / University *
@@ -340,18 +364,22 @@ export function ApplyModal({ opportunity, profile, onClose, onSubmitted }: Apply
             <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-xs font-semibold text-slate-800">
-                  Resume (Upload PDF/DOC or paste URL) *
+                  {isDemoListing
+                    ? 'Sample Resume Reference (No personal document required for Demo Listings)'
+                    : 'Resume (Upload PDF/DOC or paste URL) *'}
                 </label>
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-md cursor-pointer hover:bg-slate-50">
-                  <FileUp className="w-3.5 h-3.5" />
-                  {uploading ? 'Uploading...' : 'Upload File'}
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </label>
+                {!isDemoListing && (
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-md cursor-pointer hover:bg-slate-50">
+                    <FileUp className="w-3.5 h-3.5" />
+                    {uploading ? 'Uploading...' : 'Upload File'}
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                  </label>
+                )}
               </div>
               <input
                 type="url"

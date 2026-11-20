@@ -23,6 +23,7 @@ import { ManageApplicationsPage } from './pages/admin/ManageApplicationsPage';
 import { ManageEventsPage } from './pages/admin/ManageEventsPage';
 import { AdminReportsPage } from './pages/admin/AdminReportsPage';
 import { AdminAnalyticsPage } from './pages/admin/AdminAnalyticsPage';
+import { AdminDemoDataPage } from './pages/admin/AdminDemoDataPage';
 import { AdminProfilePage } from './pages/admin/AdminProfilePage';
 
 function LoadingScreen() {
@@ -116,7 +117,8 @@ export default function App() {
                   <OpportunityMarketplace
                     presetCategory="internship"
                     pageTitle="Internships"
-                    pageSubtitle="Verified internships for undergraduate, MBA, and postgraduate students."
+                    pageSubtitle="Internships across Finance, Marketing, HR, Analytics, Tech, Operations, Design, and Research."
+                    unitLabel="Opportunities"
                   />
                 }
               />
@@ -126,7 +128,19 @@ export default function App() {
                   <OpportunityMarketplace
                     presetCategory="part_time"
                     pageTitle="Part-Time Jobs"
-                    pageSubtitle="Flexible part-time roles structured around college lecture schedules."
+                    pageSubtitle="Flexible part-time student roles structured around college lecture schedules."
+                    unitLabel="Opportunities"
+                  />
+                }
+              />
+              <Route
+                path="full-time"
+                element={
+                  <OpportunityMarketplace
+                    presetCategory="entry_level"
+                    pageTitle="Full-Time Jobs"
+                    pageSubtitle="Entry-level graduate trainee, analyst, marketing, finance, and operations roles."
+                    unitLabel="Opportunities"
                   />
                 }
               />
@@ -136,7 +150,19 @@ export default function App() {
                   <OpportunityMarketplace
                     presetCategory="live_project"
                     pageTitle="Live Projects"
-                    pageSubtitle="Short-term mentored industry projects to build practical portfolio proof."
+                    pageSubtitle="Short-term mentored industry projects in Finance, Analytics, Marketing, and Operations."
+                    unitLabel="Projects"
+                  />
+                }
+              />
+              <Route
+                path="skill-development"
+                element={
+                  <OpportunityMarketplace
+                    presetCategory="skill_building"
+                    pageTitle="Skill Development"
+                    pageSubtitle="Practical training programs in Excel, Power BI, SQL, Python, Financial Modelling, and Career Readiness."
+                    unitLabel="Programs"
                   />
                 }
               />
@@ -165,6 +191,7 @@ export default function App() {
               <Route path="events" element={<ManageEventsPage />} />
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="analytics" element={<AdminAnalyticsPage />} />
+              <Route path="demo-data" element={<AdminDemoDataPage />} />
               <Route path="profile" element={<AdminProfilePage />} />
             </Route>
 

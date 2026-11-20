@@ -19,6 +19,9 @@ export function ManageEventsPage() {
   const [events, setEvents] = useState<CampusEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [dataScope, setDataScope] = useState<'all' | 'real' | 'demo'>('all');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [title, setTitle] = useState('');
@@ -121,6 +124,16 @@ export function ManageEventsPage() {
     }
   };
 
+  const filteredEvents = events.filter((evt) => {
+    const isDemoEvt = Boolean(evt.isDemo || evt.status === 'demo_approved');
+    if (dataScope === 'real' && isDemoEvt) return false;
+    if (dataScope === 'demo' && !isDemoEvt) return false;
+    return true;
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredEvents.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedEvents = filteredEvents.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -144,12 +157,44 @@ export function ManageEventsPage() {
         </button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            { id: 'all', label: `All Events (${events.length})` },
+            {
+              id: 'real',
+              label: `Real Events (${events.filter((e) => !e.isDemo && e.status !== 'demo_approved').length})`,
+            },
+            {
+              id: 'demo',
+              label: `Demo Events (${events.filter((e) => Boolean(e.isDemo || e.status === 'demo_approved')).length})`,
+            },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              setDataScope(tab.id);
+              setPage(1);
+            }}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+              dataScope === tab.id
+                ? 'bg-slate-950 text-white border-slate-950'
+                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         {loading ? (
           <div className="p-10 text-center text-xs text-slate-500">Loading events...</div>
-        ) : events.length === 0 ? (
+        ) : filteredEvents.length === 0 ? (
           <div className="p-10 text-center text-xs text-slate-500">
-            No campus events created yet.
+            No campus events found in this filter.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -158,52 +203,83 @@ export function ManageEventsPage() {
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-semibold text-slate-500">
                   <th className="py-3 px-5">Event Title</th>
                   <th className="py-3 px-5">Type</th>
-                  <th className="py-3 px-5">Date & Venue</th>
+                  <th className="py-3 px-5">Date &amp; Venue</th>
                   <th className="py-3 px-5">Status</th>
                   <th className="py-3 px-5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {events.map((evt) => (
-                  <tr key={evt.eventId} className="hover:bg-slate-50/60">
-                    <td className="py-3.5 px-5">
-                      <p className="font-semibold text-slate-950">{evt.title}</p>
-                      <p className="text-slate-500">{evt.organizer}</p>
-                    </td>
-                    <td className="py-3.5 px-5 text-slate-700 whitespace-nowrap">
-                      {EVENT_TYPE_LABELS[evt.eventType]}
-                    </td>
-                    <td className="py-3.5 px-5 text-slate-700">
-                      <p className="font-mono tabular-nums">
-                        {evt.eventDate} · {evt.eventTime}
-                      </p>
-                      <p className="text-slate-500">{evt.location}</p>
-                    </td>
-                    <td className="py-3.5 px-5 whitespace-nowrap">
-                      <StatusTextLabel status={evt.status} />
-                    </td>
-                    <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-3">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(evt)}
-                        className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteCampusEvent(evt.eventId)}
-                        className="inline-flex items-center gap-1 font-semibold text-red-700 hover:underline"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {paginatedEvents.map((evt) => {
+                  const isDemoEvt = Boolean(evt.isDemo || evt.status === 'demo_approved');
+                  return (
+                    <tr key={evt.eventId} className="hover:bg-slate-50/60">
+                      <td className="py-3.5 px-5">
+                        <p className="font-semibold text-slate-950">{evt.title}</p>
+                        <p className="text-slate-500">{evt.organizer}</p>
+                      </td>
+                      <td className="py-3.5 px-5 text-slate-700 whitespace-nowrap">
+                        {EVENT_TYPE_LABELS[evt.eventType]}
+                      </td>
+                      <td className="py-3.5 px-5 text-slate-700">
+                        <p className="font-mono tabular-nums">
+                          {evt.eventDate} · {evt.eventTime}
+                        </p>
+                        <p className="text-slate-500">{evt.location}</p>
+                      </td>
+                      <td className="py-3.5 px-5 whitespace-nowrap">
+                        <StatusTextLabel status={evt.status} />
+                      </td>
+                      <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-3">
+                        {!isDemoEvt && (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(evt)}
+                            className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => deleteCampusEvent(evt.eventId)}
+                          className="inline-flex items-center gap-1 font-semibold text-red-700 hover:underline"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {filteredEvents.length > PAGE_SIZE && (
+          <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 bg-slate-50/50">
+            <span className="font-mono tabular-nums">
+              Page {safePage} of {totalPages} ({filteredEvents.length.toLocaleString('en-IN')} events)
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded border border-slate-300 bg-white font-semibold disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 rounded border border-slate-300 bg-white font-semibold disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

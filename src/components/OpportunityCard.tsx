@@ -3,6 +3,7 @@ import { Bookmark, BookmarkCheck, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   CATEGORY_LABELS,
+  DEMO_LISTING_NOTICE,
   formatDeadlineRelative,
   WORK_MODE_LABELS,
   type Opportunity,
@@ -30,10 +31,17 @@ export function OpportunityCard({
   matchInfo,
 }: OpportunityCardProps) {
   const deadline = formatDeadlineRelative(opportunity.deadline);
+  const isDemoListing = Boolean(opportunity.isDemo || opportunity.status === 'demo_approved');
 
   return (
     <article className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between transition-colors hover:border-slate-300">
       <div>
+        {isDemoListing && (
+          <div className="mb-3 px-3 py-1.5 rounded-md bg-amber-50 border border-amber-200/90 text-[11px] font-semibold tracking-wide text-amber-900 flex items-center justify-between gap-2">
+            <span>{DEMO_LISTING_NOTICE}</span>
+            <span className="font-mono text-[10px] text-amber-800 shrink-0">DEMO DATA</span>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3.5 min-w-0">
             <CompanyAvatar
@@ -45,11 +53,14 @@ export function OpportunityCard({
               <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
                 <span className="font-medium text-slate-700">{opportunity.companyName}</span>
                 <span aria-hidden="true">·</span>
-                <span>{CATEGORY_LABELS[opportunity.category]}</span>
+                <span>
+                  {opportunity.subCategory || CATEGORY_LABELS[opportunity.category]}
+                </span>
                 <span aria-hidden="true">·</span>
                 <VerifiedInlineStatus
                   isVerified={opportunity.isVerified}
                   status={opportunity.status}
+                  isDemo={isDemoListing}
                 />
               </div>
               <Link

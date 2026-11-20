@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bookmark,
+  BookOpen,
   Briefcase,
+  Building2,
   Calendar,
   Clock,
   Compass,
@@ -24,8 +26,10 @@ const STUDENT_NAV = [
   { to: '/student/explore', label: 'Explore Opportunities', icon: Compass },
   { to: '/student/internships', label: 'Internships', icon: Briefcase },
   { to: '/student/part-time', label: 'Part-Time Jobs', icon: Clock },
+  { to: '/student/full-time', label: 'Full-Time Jobs', icon: Building2 },
   { to: '/student/live-projects', label: 'Live Projects', icon: FolderGit2 },
   { to: '/student/events', label: 'Campus Events', icon: Calendar },
+  { to: '/student/skill-development', label: 'Skill Development', icon: BookOpen },
   { to: '/student/applications', label: 'My Applications', icon: FileText },
   { to: '/student/saved', label: 'Saved Opportunities', icon: Bookmark },
   { to: '/student/profile', label: 'My Profile', icon: UserCircle },

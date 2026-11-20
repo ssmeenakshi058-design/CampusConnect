@@ -26,6 +26,10 @@ export function ManageOpportunitiesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dataScope, setDataScope] = useState<'all' | 'real' | 'demo'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
@@ -200,10 +204,22 @@ export function ManageOpportunitiesPage() {
     }
   };
 
-  const filtered =
-    statusFilter === 'all'
-      ? opportunities
-      : opportunities.filter((o) => o.status === statusFilter);
+  const filtered = opportunities.filter((o) => {
+    const isDemoOpp = Boolean(o.isDemo || o.status === 'demo_approved');
+    if (dataScope === 'real' && isDemoOpp) return false;
+    if (dataScope === 'demo' && !isDemoOpp) return false;
+    if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      const hay = `${o.title} ${o.companyName} ${o.location} ${o.subCategory || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -218,13 +234,70 @@ export function ManageOpportunitiesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <button
+          type="button"
+          onClick={openCreate}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-blue-700 rounded-lg hover:bg-blue-800 whitespace-nowrap shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          Create Opportunity
+        </button>
+      </div>
+
+      {/* Filters & Scope Bar */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              { id: 'all', label: `All (${opportunities.length})` },
+              {
+                id: 'real',
+                label: `Real (${opportunities.filter((o) => !o.isDemo && o.status !== 'demo_approved').length})`,
+              },
+              {
+                id: 'demo',
+                label: `Demo (${opportunities.filter((o) => Boolean(o.isDemo || o.status === 'demo_approved')).length})`,
+              },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setDataScope(tab.id);
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                dataScope === tab.id
+                  ? 'bg-slate-950 text-white border-slate-950'
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <input
+            type="search"
+            placeholder="Search title, company, city..."
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg w-56"
+          />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 text-xs font-medium border border-slate-300 rounded-lg bg-white"
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg bg-white"
           >
-            <option value="all">All Statuses ({opportunities.length})</option>
+            <option value="all">All Statuses</option>
             {(Object.entries(OPPORTUNITY_STATUS_LABELS) as [OpportunityStatus, string][]).map(
               ([key, label]) => (
                 <option key={key} value={key}>
@@ -233,15 +306,6 @@ export function ManageOpportunitiesPage() {
               )
             )}
           </select>
-
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-blue-700 rounded-lg hover:bg-blue-800 whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" />
-            Create Opportunity
-          </button>
         </div>
       </div>
 
@@ -250,7 +314,7 @@ export function ManageOpportunitiesPage() {
           <div className="p-10 text-center text-xs text-slate-500">Loading opportunities...</div>
         ) : filtered.length === 0 ? (
           <div className="p-10 text-center text-xs text-slate-500">
-            No opportunities found in this status filter.
+            No opportunities found matching your current filters.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -265,65 +329,100 @@ export function ManageOpportunitiesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {filtered.map((opp) => (
-                  <tr key={opp.opportunityId} className="hover:bg-slate-50/60">
-                    <td className="py-3.5 px-5">
-                      <p className="font-semibold text-slate-950">{opp.title}</p>
-                      <p className="text-slate-500">
-                        {opp.companyName} · {opp.stipendLabel}
-                      </p>
-                    </td>
-                    <td className="py-3.5 px-5 text-slate-700 whitespace-nowrap">
-                      {CATEGORY_LABELS[opp.category]} · {WORK_MODE_LABELS[opp.workMode]}
-                    </td>
-                    <td className="py-3.5 px-5 font-mono tabular-nums text-slate-700 whitespace-nowrap">
-                      {opp.deadline}
-                    </td>
-                    <td className="py-3.5 px-5 whitespace-nowrap">
-                      <VerifiedInlineStatus isVerified={opp.isVerified} status={opp.status} />
-                    </td>
-                    <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-3">
-                      {opp.status !== 'verified' && (
+                {paginated.map((opp) => {
+                  const isDemoOpp = Boolean(opp.isDemo || opp.status === 'demo_approved');
+                  return (
+                    <tr key={opp.opportunityId} className="hover:bg-slate-50/60">
+                      <td className="py-3.5 px-5">
+                        <p className="font-semibold text-slate-950">{opp.title}</p>
+                        <p className="text-slate-500">
+                          {opp.companyName} · {opp.location} · {opp.stipendLabel}
+                        </p>
+                      </td>
+                      <td className="py-3.5 px-5 text-slate-700 whitespace-nowrap">
+                        {CATEGORY_LABELS[opp.category]} · {WORK_MODE_LABELS[opp.workMode]}
+                      </td>
+                      <td className="py-3.5 px-5 font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                        {opp.deadline}
+                      </td>
+                      <td className="py-3.5 px-5 whitespace-nowrap">
+                        <VerifiedInlineStatus
+                          isVerified={opp.isVerified}
+                          status={opp.status}
+                          isDemo={isDemoOpp}
+                        />
+                      </td>
+                      <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-3">
+                        {!isDemoOpp && opp.status !== 'verified' && (
+                          <button
+                            type="button"
+                            onClick={() => updateOpportunityStatus(opp.opportunityId, 'verified', true)}
+                            className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Verify
+                          </button>
+                        )}
+                        {!isDemoOpp && opp.status === 'verified' && (
+                          <button
+                            type="button"
+                            onClick={() => updateOpportunityStatus(opp.opportunityId, 'closed', false)}
+                            className="inline-flex items-center gap-1 font-semibold text-amber-700 hover:underline"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            Close
+                          </button>
+                        )}
+                        {!isDemoOpp && (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(opp)}
+                            className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Edit
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => updateOpportunityStatus(opp.opportunityId, 'verified', true)}
-                          className="inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline"
+                          onClick={() => deleteOpportunity(opp.opportunityId)}
+                          className="inline-flex items-center gap-1 font-semibold text-red-700 hover:underline"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Verify
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Remove
                         </button>
-                      )}
-                      {opp.status === 'verified' && (
-                        <button
-                          type="button"
-                          onClick={() => updateOpportunityStatus(opp.opportunityId, 'closed', false)}
-                          className="inline-flex items-center gap-1 font-semibold text-amber-700 hover:underline"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          Close
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => openEdit(opp)}
-                        className="inline-flex items-center gap-1 font-semibold text-blue-700 hover:underline"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteOpportunity(opp.opportunityId)}
-                        className="inline-flex items-center gap-1 font-semibold text-red-700 hover:underline"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {filtered.length > PAGE_SIZE && (
+          <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 bg-slate-50/50">
+            <span className="font-mono tabular-nums">
+              Page {safePage} of {totalPages} ({filtered.length.toLocaleString('en-IN')} records)
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded border border-slate-300 bg-white font-semibold disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 rounded border border-slate-300 bg-white font-semibold disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -51,6 +51,10 @@ service cloud.firestore {
       return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
     }
 
+    function isOptionalBool(data, key) {
+      return !(key in data) || data[key] is bool;
+    }
+
     function isValidStringList(listVal, maxItems) {
       return listVal is list
         && listVal.size() <= maxItems
@@ -58,7 +62,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // ENTITY VALIDATION BLUEPRINTS (ANTI-UPDATE-GAP)
+    // ENTITY VALIDATION BLUEPRINTS
     // =========================================================================
 
     function isValidUserAccount(data, uid) {
@@ -134,7 +138,11 @@ service cloud.firestore {
 
     function isValidCompany(data, companyId) {
       return data.keys().hasAll(['companyId', 'name', 'industry', 'description', 'location', 'verificationStatus', 'createdBy', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['companyId', 'name', 'industry', 'description', 'website', 'location', 'logoUrl', 'verificationStatus', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'companyId', 'name', 'industry', 'description', 'website', 'location',
+          'logoUrl', 'companySize', 'verificationStatus', 'isDemo', 'demoLabel',
+          'seedVersion', 'createdBy', 'createdAt', 'updatedAt'
+        ])
         && data.companyId == companyId
         && isValidId(data.companyId)
         && isValidString(data.name, 1, 160)
@@ -143,7 +151,12 @@ service cloud.firestore {
         && isOptionalString(data, 'website', 400)
         && isValidString(data.location, 1, 140)
         && isOptionalString(data, 'logoUrl', 1000)
-        && data.verificationStatus in ['pending', 'verified', 'rejected']
+        && isOptionalString(data, 'companySize', 60)
+        && data.verificationStatus in ['pending', 'verified', 'rejected', 'demo']
+        && isOptionalBool(data, 'isDemo')
+        && isOptionalString(data, 'demoLabel', 40)
+        && isOptionalString(data, 'seedVersion', 40)
+        && (!('isDemo' in data) || data.isDemo == false || data.verificationStatus == 'demo')
         && isValidId(data.createdBy)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
@@ -170,11 +183,12 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'opportunityId', 'title', 'companyId', 'companyName', 'companyLogoUrl',
-          'industry', 'category', 'description', 'responsibilities', 'requiredSkills',
-          'eligibility', 'educationQualification', 'workMode', 'location',
-          'isPaid', 'stipendMin', 'stipendMax', 'stipendLabel', 'duration',
-          'openings', 'deadline', 'requiredDocuments', 'additionalQuestions',
-          'allowReapply', 'status', 'isVerified', 'createdBy', 'createdAt', 'updatedAt'
+          'industry', 'category', 'subCategory', 'opportunityType', 'description',
+          'responsibilities', 'requiredSkills', 'eligibility', 'educationQualification',
+          'workMode', 'location', 'isPaid', 'stipendMin', 'stipendMax', 'stipendLabel',
+          'duration', 'openings', 'deadline', 'requiredDocuments', 'additionalQuestions',
+          'allowReapply', 'status', 'isVerified', 'isDemo', 'demoLabel', 'seedVersion',
+          'createdMonth', 'createdBy', 'createdAt', 'updatedAt'
         ])
         && data.opportunityId == opportunityId
         && isValidId(data.opportunityId)
@@ -184,6 +198,8 @@ service cloud.firestore {
         && isOptionalString(data, 'companyLogoUrl', 1000)
         && isValidString(data.industry, 1, 100)
         && data.category in ['internship', 'part_time', 'entry_level', 'live_project', 'skill_building', 'campus_event']
+        && isOptionalString(data, 'subCategory', 120)
+        && isOptionalString(data, 'opportunityType', 80)
         && isValidString(data.description, 10, 4000)
         && isValidStringList(data.responsibilities, 15)
         && isValidStringList(data.requiredSkills, 20)
@@ -201,11 +217,85 @@ service cloud.firestore {
         && isValidStringList(data.requiredDocuments, 10)
         && isValidStringList(data.additionalQuestions, 5)
         && data.allowReapply is bool
-        && data.status in ['pending', 'verified', 'rejected', 'expired', 'closed']
+        && data.status in ['pending', 'verified', 'demo_approved', 'rejected', 'expired', 'closed']
         && data.isVerified is bool
         && (data.isVerified == false || data.status == 'verified')
+        && isOptionalBool(data, 'isDemo')
+        && isOptionalString(data, 'demoLabel', 40)
+        && isOptionalString(data, 'seedVersion', 40)
+        && isOptionalString(data, 'createdMonth', 20)
+        && (!('isDemo' in data) || data.isDemo == false || (data.isVerified == false && data.status == 'demo_approved'))
         && isValidId(data.createdBy)
         && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSkillProgram(data, programId) {
+      return data.keys().hasAll([
+          'programId', 'opportunityId', 'title', 'providerName', 'companyId',
+          'topic', 'description', 'skills', 'location', 'workMode', 'isPaid',
+          'feeLabel', 'duration', 'deadline', 'level', 'status', 'createdBy',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'programId', 'opportunityId', 'title', 'providerName', 'companyId',
+          'topic', 'description', 'skills', 'location', 'workMode', 'isPaid',
+          'feeLabel', 'duration', 'deadline', 'level', 'status', 'isDemo',
+          'demoLabel', 'seedVersion', 'createdMonth', 'createdBy',
+          'createdAt', 'updatedAt'
+        ])
+        && data.programId == programId
+        && isValidId(data.programId)
+        && isValidId(data.opportunityId)
+        && isValidString(data.title, 2, 180)
+        && isValidString(data.providerName, 1, 160)
+        && isValidId(data.companyId)
+        && isValidString(data.topic, 1, 120)
+        && isValidString(data.description, 10, 3000)
+        && isValidStringList(data.skills, 15)
+        && isValidString(data.location, 1, 140)
+        && data.workMode in ['on_site', 'remote', 'hybrid']
+        && data.isPaid is bool
+        && isValidString(data.feeLabel, 1, 100)
+        && isValidString(data.duration, 1, 100)
+        && isValidString(data.deadline, 4, 30)
+        && isValidString(data.level, 1, 60)
+        && data.status in ['pending', 'verified', 'demo_approved', 'closed']
+        && isOptionalBool(data, 'isDemo')
+        && isOptionalString(data, 'demoLabel', 40)
+        && isOptionalString(data, 'seedVersion', 40)
+        && isOptionalString(data, 'createdMonth', 20)
+        && (!('isDemo' in data) || data.isDemo == false || data.status == 'demo_approved')
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDemoSeedMetadata(data, metaId) {
+      return data.keys().hasAll([
+          'metaId', 'seedVersion', 'companiesCount', 'internshipsCount',
+          'partTimeCount', 'entryLevelCount', 'liveProjectsCount',
+          'eventsCount', 'skillProgramsCount', 'totalDemoRecords',
+          'generatedBy', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'metaId', 'seedVersion', 'companiesCount', 'internshipsCount',
+          'partTimeCount', 'entryLevelCount', 'liveProjectsCount',
+          'eventsCount', 'skillProgramsCount', 'totalDemoRecords',
+          'generatedBy', 'updatedAt'
+        ])
+        && data.metaId == metaId
+        && isValidId(data.metaId)
+        && isValidString(data.seedVersion, 1, 60)
+        && data.companiesCount is number && data.companiesCount >= 0
+        && data.internshipsCount is number && data.internshipsCount >= 0
+        && data.partTimeCount is number && data.partTimeCount >= 0
+        && data.entryLevelCount is number && data.entryLevelCount >= 0
+        && data.liveProjectsCount is number && data.liveProjectsCount >= 0
+        && data.eventsCount is number && data.eventsCount >= 0
+        && data.skillProgramsCount is number && data.skillProgramsCount >= 0
+        && data.totalDemoRecords is number && data.totalDemoRecords >= 0
+        && isValidId(data.generatedBy)
         && data.updatedAt is timestamp;
     }
 
@@ -219,7 +309,8 @@ service cloud.firestore {
           'applicationId', 'applicationCode', 'opportunityId', 'opportunityTitle',
           'companyName', 'category', 'studentUid', 'studentName', 'studentEmail',
           'studentPhone', 'college', 'course', 'skills', 'resumeUrl', 'resumeFileName',
-          'coverLetter', 'additionalAnswers', 'status', 'adminNotes', 'createdAt', 'updatedAt'
+          'coverLetter', 'additionalAnswers', 'status', 'adminNotes',
+          'isDemo', 'demoLabel', 'createdAt', 'updatedAt'
         ])
         && data.applicationId == applicationId
         && isValidId(data.applicationId)
@@ -241,6 +332,8 @@ service cloud.firestore {
         && (!('additionalAnswers' in data) || isValidStringList(data.additionalAnswers, 5))
         && data.status in ['submitted', 'under_review', 'shortlisted', 'interview_scheduled', 'selected', 'rejected', 'withdrawn']
         && isOptionalString(data, 'adminNotes', 1500)
+        && isOptionalBool(data, 'isDemo')
+        && isOptionalString(data, 'demoLabel', 40)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -252,7 +345,7 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'savedId', 'studentUid', 'opportunityId', 'opportunityTitle',
-          'companyName', 'category', 'location', 'deadline', 'createdAt'
+          'companyName', 'category', 'location', 'deadline', 'isDemo', 'createdAt'
         ])
         && data.savedId == savedId
         && isValidId(data.savedId)
@@ -263,6 +356,7 @@ service cloud.firestore {
         && isValidString(data.category, 1, 60)
         && isValidString(data.location, 1, 140)
         && isValidString(data.deadline, 4, 30)
+        && isOptionalBool(data, 'isDemo')
         && data.createdAt is timestamp;
     }
 
@@ -273,27 +367,35 @@ service cloud.firestore {
           'registrationDeadline', 'status', 'createdBy', 'createdAt', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'eventId', 'title', 'eventType', 'organizer', 'description',
-          'venue', 'location', 'mode', 'eventDate', 'eventTime',
+          'eventId', 'title', 'eventType', 'subCategory', 'organizer', 'description',
+          'venue', 'location', 'mode', 'isPaid', 'feeLabel', 'eventDate', 'eventTime',
           'registrationDeadline', 'capacity', 'registrationLink', 'bannerUrl',
-          'status', 'createdBy', 'createdAt', 'updatedAt'
+          'status', 'isDemo', 'demoLabel', 'seedVersion', 'createdMonth',
+          'createdBy', 'createdAt', 'updatedAt'
         ])
         && data.eventId == eventId
         && isValidId(data.eventId)
         && isValidString(data.title, 2, 180)
         && data.eventType in ['campus_event', 'career_workshop', 'placement_prep', 'networking', 'skill_session']
+        && isOptionalString(data, 'subCategory', 120)
         && isValidString(data.organizer, 1, 140)
         && isValidString(data.description, 10, 3000)
         && isValidString(data.venue, 1, 160)
         && isValidString(data.location, 1, 140)
         && data.mode in ['on_site', 'online', 'hybrid']
+        && isOptionalBool(data, 'isPaid')
+        && isOptionalString(data, 'feeLabel', 80)
         && isValidString(data.eventDate, 4, 30)
         && isValidString(data.eventTime, 1, 40)
         && isValidString(data.registrationDeadline, 4, 30)
         && (!('capacity' in data) || (data.capacity is number && data.capacity >= 1 && data.capacity <= 50000))
         && isOptionalString(data, 'registrationLink', 400)
         && isOptionalString(data, 'bannerUrl', 1000)
-        && data.status in ['upcoming', 'completed', 'cancelled']
+        && data.status in ['upcoming', 'completed', 'cancelled', 'demo_approved']
+        && isOptionalBool(data, 'isDemo')
+        && isOptionalString(data, 'demoLabel', 40)
+        && isOptionalString(data, 'seedVersion', 40)
+        && isOptionalString(data, 'createdMonth', 20)
         && isValidId(data.createdBy)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
@@ -350,7 +452,6 @@ service cloud.firestore {
     // COLLECTION MATCH BLOCKS
     // =========================================================================
 
-    // 1. Users Collection (PII & RBAC Protected)
     match /users/{uid} {
       allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
       allow list: if isAdmin();
@@ -381,7 +482,6 @@ service cloud.firestore {
       allow delete: if isValidId(uid) && isAdmin();
     }
 
-    // 2. Student Profiles Collection (PII Protected)
     match /studentProfiles/{uid} {
       allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
       allow list: if isAdmin();
@@ -418,7 +518,6 @@ service cloud.firestore {
       allow delete: if isValidId(uid) && isAdmin();
     }
 
-    // 3. Admin Profiles Collection (Trusted Admin Directory Only)
     match /adminProfiles/{uid} {
       allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
       allow list: if isAdmin();
@@ -438,10 +537,9 @@ service cloud.firestore {
       allow delete: if isValidId(uid) && isAdmin();
     }
 
-    // 4. Companies Collection (Public Non-PII Info + Private Contact Subcollection)
     match /companies/{companyId} {
-      allow get: if isValidId(companyId) && (existing().verificationStatus == 'verified' || isAdmin());
-      allow list: if existing().verificationStatus == 'verified' || isAdmin();
+      allow get: if isValidId(companyId) && (existing().verificationStatus in ['verified', 'demo'] || isAdmin());
+      allow list: if existing().verificationStatus in ['verified', 'demo'] || isAdmin();
       allow create: if isVerifiedUser()
         && isValidId(companyId)
         && isValidCompany(incoming(), companyId)
@@ -476,10 +574,9 @@ service cloud.firestore {
       }
     }
 
-    // 5. Opportunities Collection (Verified Public Read, Admin Full Control)
     match /opportunities/{opportunityId} {
-      allow get: if isValidId(opportunityId) && (existing().status == 'verified' || isAdmin());
-      allow list: if existing().status == 'verified' || isAdmin();
+      allow get: if isValidId(opportunityId) && (existing().status in ['verified', 'demo_approved'] || isAdmin());
+      allow list: if existing().status in ['verified', 'demo_approved'] || isAdmin();
       allow create: if isVerifiedUser()
         && isValidId(opportunityId)
         && isValidOpportunity(incoming(), opportunityId)
@@ -502,7 +599,39 @@ service cloud.firestore {
       allow delete: if isValidId(opportunityId) && isAdmin();
     }
 
-    // 6. Applications Collection (Active Student Create Own, Admin Review & Status Update Only)
+    match /skillDevelopment/{programId} {
+      allow get: if isValidId(programId) && (existing().status in ['verified', 'demo_approved'] || isAdmin());
+      allow list: if existing().status in ['verified', 'demo_approved'] || isAdmin();
+      allow create: if isVerifiedUser()
+        && isValidId(programId)
+        && isValidSkillProgram(incoming(), programId)
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow update: if isVerifiedUser()
+        && isValidId(programId)
+        && isValidSkillProgram(incoming(), programId)
+        && incoming().programId == existing().programId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if isValidId(programId) && isAdmin();
+    }
+
+    match /demoSeedMetadata/{metaId} {
+      allow get: if isValidId(metaId) && isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isVerifiedUser()
+        && isValidId(metaId)
+        && isValidDemoSeedMetadata(incoming(), metaId)
+        && incoming().generatedBy == request.auth.uid
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if isValidId(metaId) && isAdmin();
+    }
+
     match /applications/{applicationId} {
       allow get: if isValidId(applicationId)
         && (isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid));
@@ -518,7 +647,17 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/studentProfiles/$(request.auth.uid))
         && get(/databases/$(database)/documents/studentProfiles/$(request.auth.uid)).data.accountStatus == 'active'
         && exists(/databases/$(database)/documents/opportunities/$(incoming().opportunityId))
-        && get(/databases/$(database)/documents/opportunities/$(incoming().opportunityId)).data.status == 'verified';
+        && (
+          (
+            get(/databases/$(database)/documents/opportunities/$(incoming().opportunityId)).data.status == 'verified'
+            && (!('isDemo' in incoming()) || incoming().isDemo == false)
+          )
+          || (
+            get(/databases/$(database)/documents/opportunities/$(incoming().opportunityId)).data.status == 'demo_approved'
+            && 'isDemo' in incoming()
+            && incoming().isDemo == true
+          )
+        );
       allow update: if isVerifiedUser()
         && isValidId(applicationId)
         && isValidApplication(incoming(), applicationId)
@@ -532,7 +671,6 @@ service cloud.firestore {
       allow delete: if isValidId(applicationId) && isAdmin();
     }
 
-    // 7. Saved Opportunities Collection (Student Bookmarks)
     match /savedOpportunities/{savedId} {
       allow get: if isValidId(savedId)
         && (isAdmin() || (isSignedIn() && existing().studentUid == request.auth.uid));
@@ -548,11 +686,10 @@ service cloud.firestore {
         && (isAdmin() || (isVerifiedUser() && existing().studentUid == request.auth.uid));
     }
 
-    // 8. Campus Events Collection
     match /events/{eventId} {
       allow get: if isValidId(eventId)
-        && (existing().status in ['upcoming', 'completed'] || isAdmin());
-      allow list: if existing().status in ['upcoming', 'completed'] || isAdmin();
+        && (existing().status in ['upcoming', 'completed', 'demo_approved'] || isAdmin());
+      allow list: if existing().status in ['upcoming', 'completed', 'demo_approved'] || isAdmin();
       allow create: if isVerifiedUser()
         && isValidId(eventId)
         && isValidCampusEvent(incoming(), eventId)
@@ -571,7 +708,6 @@ service cloud.firestore {
       allow delete: if isValidId(eventId) && isAdmin();
     }
 
-    // 9. Notifications Collection
     match /notifications/{notificationId} {
       allow get: if isValidId(notificationId)
         && (
@@ -605,7 +741,6 @@ service cloud.firestore {
       allow delete: if isValidId(notificationId) && isAdmin();
     }
 
-    // 10. Opportunity Safety Reports Collection
     match /reports/{reportId} {
       allow get: if isValidId(reportId)
         && (isAdmin() || (isSignedIn() && existing().reportedByUid == request.auth.uid));

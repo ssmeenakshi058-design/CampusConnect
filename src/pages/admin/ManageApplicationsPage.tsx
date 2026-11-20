@@ -8,17 +8,16 @@ import {
   CATEGORY_LABELS,
   type Application,
   type ApplicationStatus,
-  type Opportunity,
 } from '../../types/campus';
 import { StatusTextLabel } from '../../components/BrandMark';
 
 export function ManageApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [oppFilter, setOppFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [appScope, setAppScope] = useState<'all' | 'real' | 'demo'>('all');
 
   const [reviewing, setReviewing] = useState<Application | null>(null);
   const [nextStatus, setNextStatus] = useState<ApplicationStatus>('under_review');
@@ -39,25 +38,33 @@ export function ManageApplicationsPage() {
       (err) => handleFirestoreError(err, OperationType.LIST, 'applications')
     );
 
-    const unsubOpps = onSnapshot(
-      collection(db, 'opportunities'),
-      (snap) => setOpportunities(snap.docs.map((d) => d.data() as Opportunity)),
-      (err) => handleFirestoreError(err, OperationType.LIST, 'opportunities')
-    );
-
     return () => {
       unsubApps();
-      unsubOpps();
     };
   }, []);
 
   const filtered = useMemo(() => {
     return applications.filter((a) => {
+      if (appScope === 'real' && a.isDemo) return false;
+      if (appScope === 'demo' && !a.isDemo) return false;
       if (oppFilter !== 'all' && a.opportunityId !== oppFilter) return false;
       if (statusFilter !== 'all' && a.status !== statusFilter) return false;
       return true;
     });
-  }, [applications, oppFilter, statusFilter]);
+  }, [applications, appScope, oppFilter, statusFilter]);
+
+  const appliedOpportunityOptions = useMemo(() => {
+    const map = new Map<string, { id: string; label: string }>();
+    applications.forEach((a) => {
+      if (!map.has(a.opportunityId)) {
+        map.set(a.opportunityId, {
+          id: a.opportunityId,
+          label: `${a.opportunityTitle} — ${a.companyName}`,
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [applications]);
 
   const openReview = (app: Application) => {
     setReviewing(app);
@@ -89,6 +96,36 @@ export function ManageApplicationsPage() {
         </p>
       </div>
 
+      {/* Real vs Demo Scope Tabs */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            { id: 'all', label: `All Applications (${applications.length})` },
+            {
+              id: 'real',
+              label: `Real Employer Applications (${applications.filter((a) => !a.isDemo).length})`,
+            },
+            {
+              id: 'demo',
+              label: `Simulated Demo Applications (${applications.filter((a) => Boolean(a.isDemo)).length})`,
+            },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setAppScope(tab.id)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+              appScope === tab.id
+                ? 'bg-slate-950 text-white border-slate-950'
+                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
       <section className="bg-white border border-slate-200 rounded-xl p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
@@ -100,10 +137,10 @@ export function ManageApplicationsPage() {
             onChange={(e) => setOppFilter(e.target.value)}
             className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white"
           >
-            <option value="all">All Opportunities ({applications.length})</option>
-            {opportunities.map((o) => (
-              <option key={o.opportunityId} value={o.opportunityId}>
-                {o.title} — {o.companyName}
+            <option value="all">All Opportunities ({appliedOpportunityOptions.length})</option>
+            {appliedOpportunityOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
               </option>
             ))}
           </select>
@@ -154,7 +191,12 @@ export function ManageApplicationsPage() {
                 {filtered.map((app) => (
                   <tr key={app.applicationId} className="hover:bg-slate-50/60">
                     <td className="py-3.5 px-5 font-mono tabular-nums text-slate-600 whitespace-nowrap">
-                      {app.applicationCode}
+                      <div>{app.applicationCode}</div>
+                      {app.isDemo && (
+                        <span className="text-[10px] font-semibold text-amber-800 uppercase">
+                          DEMO APPLICATION
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-5">
                       <p className="font-semibold text-slate-950">{app.studentName}</p>
@@ -209,6 +251,12 @@ export function ManageApplicationsPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {reviewing.isDemo && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-950 font-medium">
+                  DEMO APPLICATION — Simulated student submission against a synthetic demo listing.
+                  Excluded from real employer application totals.
+                </div>
+              )}
               <dl className="grid grid-cols-2 gap-4 text-xs border border-slate-200 rounded-lg p-4 bg-slate-50/70">
                 <div className="col-span-2">
                   <dt className="text-slate-500">Opportunity</dt>

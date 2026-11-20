@@ -7,6 +7,7 @@ import { removeSavedById } from '../../lib/firestoreService';
 import { useAuth } from '../../context/AuthContext';
 import {
   CATEGORY_LABELS,
+  DEMO_LISTING_NOTICE,
   formatDeadlineRelative,
   type Opportunity,
   type OpportunityCategory,
@@ -90,6 +91,11 @@ export function SavedOpportunitiesPage() {
                 className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between"
               >
                 <div>
+                  {item.isDemo && (
+                    <div className="mb-3 px-2.5 py-1 rounded bg-amber-50 border border-amber-200 text-[11px] font-semibold text-amber-900">
+                      {DEMO_LISTING_NOTICE}
+                    </div>
+                  )}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs text-slate-500">

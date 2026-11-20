@@ -5,6 +5,7 @@ import {
   Briefcase,
   Building2,
   Calendar,
+  Database,
   FileCheck2,
   Flag,
   LayoutDashboard,
@@ -26,6 +27,7 @@ const ADMIN_NAV = [
   { to: '/admin/events', label: 'Manage Events', icon: Calendar },
   { to: '/admin/reports', label: 'Reports', icon: Flag },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/admin/demo-data', label: 'Demo Data Management', icon: Database },
   { to: '/admin/profile', label: 'Admin Profile', icon: Shield },
 ];
 

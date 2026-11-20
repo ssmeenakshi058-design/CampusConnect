@@ -43,6 +43,7 @@ import {
   storage,
   stripUndefined,
 } from './firebase';
+import { invalidateMarketplaceCache } from './marketplaceStore';
 
 // ============================================================================
 // PROFILE COMPLETION CALCULATION
@@ -491,6 +492,7 @@ export async function saveOpportunity(
         createdAt: serverTimestamp(),
       });
     }
+    invalidateMarketplaceCache();
     return opportunityId;
   } catch (error) {
     handleFirestoreError(
@@ -513,6 +515,7 @@ export async function updateOpportunityStatus(
       isVerified: status === 'verified' ? isVerified : false,
       updatedAt: serverTimestamp(),
     });
+    invalidateMarketplaceCache();
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `opportunities/${safeId}`);
   }
@@ -522,6 +525,7 @@ export async function deleteOpportunity(opportunityId: string): Promise<void> {
   const safeId = sanitizeId(opportunityId);
   try {
     await deleteDoc(doc(db, 'opportunities', safeId));
+    invalidateMarketplaceCache();
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `opportunities/${safeId}`);
   }
@@ -562,8 +566,13 @@ export async function submitStudentApplication(params: {
       }
     }
 
+    const isDemoOpp = Boolean(
+      params.opportunity.isDemo || params.opportunity.status === 'demo_approved'
+    );
     const codeNum = Math.floor(100000 + Math.random() * 900000);
-    const applicationCode = `CC-${new Date().getFullYear()}-${codeNum}`;
+    const applicationCode = isDemoOpp
+      ? `DEMO-${new Date().getFullYear()}-${codeNum}`
+      : `CC-${new Date().getFullYear()}-${codeNum}`;
 
     await setDoc(
       appRef,
@@ -586,30 +595,44 @@ export async function submitStudentApplication(params: {
         coverLetter: params.coverLetter ? clampText(params.coverLetter, 3000) : '',
         additionalAnswers: clampList(params.additionalAnswers ?? [], 5, 200),
         status: 'submitted',
+        ...(isDemoOpp ? { isDemo: true, demoLabel: 'DEMO DATA' } : { isDemo: false }),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
     );
 
-    // Trigger in-app notifications for student + admin queue
-    await Promise.allSettled([
-      createNotification({
-        recipientUid: safeUid,
-        recipientRole: 'student',
-        type: 'application_submitted',
-        title: 'Application Submitted',
-        message: `Your application (${applicationCode}) for ${params.opportunity.title} at ${params.opportunity.companyName} has been received.`,
-        relatedId: applicationId,
-      }),
-      createNotification({
-        recipientUid: 'admins',
-        recipientRole: 'admin',
-        type: 'new_application',
-        title: 'New Application Received',
-        message: `${params.studentName} applied for ${params.opportunity.title} (${params.opportunity.companyName}).`,
-        relatedId: applicationId,
-      }),
-    ]);
+    // Trigger in-app notifications (keep demo applications clearly labeled and out of live employer alerts)
+    if (isDemoOpp) {
+      await Promise.allSettled([
+        createNotification({
+          recipientUid: safeUid,
+          recipientRole: 'student',
+          type: 'demo_application_submitted',
+          title: 'Demo Application Recorded',
+          message: `DEMO APPLICATION (${applicationCode}) recorded for ${params.opportunity.title} at ${params.opportunity.companyName}. This simulated application is not sent to a real employer.`,
+          relatedId: applicationId,
+        }),
+      ]);
+    } else {
+      await Promise.allSettled([
+        createNotification({
+          recipientUid: safeUid,
+          recipientRole: 'student',
+          type: 'application_submitted',
+          title: 'Application Submitted',
+          message: `Your application (${applicationCode}) for ${params.opportunity.title} at ${params.opportunity.companyName} has been received.`,
+          relatedId: applicationId,
+        }),
+        createNotification({
+          recipientUid: 'admins',
+          recipientRole: 'admin',
+          type: 'new_application',
+          title: 'New Application Received',
+          message: `${params.studentName} applied for ${params.opportunity.title} (${params.opportunity.companyName}).`,
+          relatedId: applicationId,
+        }),
+      ]);
+    }
 
     return { applicationId, applicationCode };
   } catch (error) {
@@ -665,6 +688,7 @@ export async function toggleSavedOpportunity(
       await deleteDoc(savedRef);
       return false;
     } else {
+      const isDemoOpp = Boolean(opportunity.isDemo || opportunity.status === 'demo_approved');
       await setDoc(savedRef, {
         savedId,
         studentUid: safeUid,
@@ -674,6 +698,8 @@ export async function toggleSavedOpportunity(
         category: opportunity.category,
         location: clampText(opportunity.location, 140),
         deadline: clampText(opportunity.deadline, 30),
+        isDemo: isDemoOpp,
+        ...(isDemoOpp ? { demoLabel: 'DEMO DATA' } : {}),
         createdAt: serverTimestamp(),
       });
       return true;
@@ -739,6 +765,7 @@ export async function saveCampusEvent(
         createdAt: serverTimestamp(),
       });
     }
+    invalidateMarketplaceCache();
     return eventId;
   } catch (error) {
     handleFirestoreError(
@@ -753,6 +780,7 @@ export async function deleteCampusEvent(eventId: string): Promise<void> {
   const safeId = sanitizeId(eventId);
   try {
     await deleteDoc(doc(db, 'events', safeId));
+    invalidateMarketplaceCache();
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `events/${safeId}`);
   }

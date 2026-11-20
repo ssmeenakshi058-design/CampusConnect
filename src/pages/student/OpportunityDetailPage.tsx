@@ -15,6 +15,7 @@ import { toggleSavedOpportunity } from '../../lib/firestoreService';
 import { useAuth } from '../../context/AuthContext';
 import {
   CATEGORY_LABELS,
+  DEMO_LISTING_NOTICE,
   formatDeadlineRelative,
   PLATFORM_DISCLAIMER,
   WORK_MODE_LABELS,
@@ -153,6 +154,7 @@ export function OpportunityDetailPage({ isPublicView = false }: { isPublicView?:
   }
 
   const deadline = formatDeadlineRelative(opportunity.deadline);
+  const isDemoListing = Boolean(opportunity.isDemo || opportunity.status === 'demo_approved');
 
   const content = (
     <div className="space-y-6">
@@ -165,6 +167,22 @@ export function OpportunityDetailPage({ isPublicView = false }: { isPublicView?:
           Back to Opportunities
         </Link>
       </div>
+
+      {isDemoListing && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-bold tracking-wide text-amber-950">
+              {DEMO_LISTING_NOTICE}
+            </p>
+            <p className="text-xs text-amber-900 mt-0.5">
+              This is a synthetic demonstration listing created to showcase CampusConnect search,
+              filtering, and application workflows. It does not represent a live external employer
+              opening.
+            </p>
+          </div>
+          <span className="font-mono text-xs font-bold text-amber-900 shrink-0">DEMO DATA</span>
+        </div>
+      )}
 
       {/* Primary Header Card */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 sm:p-8">
@@ -179,13 +197,14 @@ export function OpportunityDetailPage({ isPublicView = false }: { isPublicView?:
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span className="font-semibold text-slate-800">{opportunity.companyName}</span>
                 <span aria-hidden="true">·</span>
-                <span>{CATEGORY_LABELS[opportunity.category]}</span>
+                <span>{opportunity.subCategory || CATEGORY_LABELS[opportunity.category]}</span>
                 <span aria-hidden="true">·</span>
                 <span>{opportunity.industry}</span>
                 <span aria-hidden="true">·</span>
                 <VerifiedInlineStatus
                   isVerified={opportunity.isVerified}
                   status={opportunity.status}
+                  isDemo={isDemoListing}
                 />
               </div>
               <h1 className="mt-1.5 text-2xl sm:text-3xl font-display font-extrabold text-slate-950 tracking-tight leading-tight">
@@ -354,15 +373,18 @@ export function OpportunityDetailPage({ isPublicView = false }: { isPublicView?:
             </p>
             <p className="text-xs text-slate-500">
               {company?.industry || opportunity.industry} · {company?.location || opportunity.location}
+              {company?.companySize ? ` · ${company.companySize}` : ''}
             </p>
             {company?.description ? (
               <p className="text-xs text-slate-600 leading-relaxed">{company.description}</p>
             ) : (
               <p className="text-xs text-slate-500">
-                Verified partner organization listed on CampusConnect.
+                {isDemoListing
+                  ? 'Fictional demo organization created for CampusConnect demonstration data.'
+                  : 'Verified partner organization listed on CampusConnect.'}
               </p>
             )}
-            {company?.website && (
+            {company?.website && !isDemoListing && (
               <a
                 href={company.website}
                 target="_blank"

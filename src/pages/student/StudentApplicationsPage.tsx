@@ -115,7 +115,12 @@ export function StudentApplicationsPage() {
                   return (
                     <tr key={app.applicationId} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-4 px-5 font-mono text-xs text-slate-600 tabular-nums whitespace-nowrap">
-                        {app.applicationCode}
+                        <div>{app.applicationCode}</div>
+                        {app.isDemo && (
+                          <span className="text-[10px] font-semibold text-amber-800 uppercase">
+                            DEMO APPLICATION
+                          </span>
+                        )}
                       </td>
                       <td className="py-4 px-5">
                         <Link
@@ -125,6 +130,11 @@ export function StudentApplicationsPage() {
                           {app.opportunityTitle}
                         </Link>
                         <p className="text-xs text-slate-500 mt-0.5">{app.companyName}</p>
+                        {app.isDemo && (
+                          <p className="text-[11px] text-amber-800 mt-1">
+                            Simulated demo application — not sent to a real employer.
+                          </p>
+                        )}
                         {app.adminNotes && (
                           <p className="text-xs text-slate-600 mt-1.5 bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5">
                             Reviewer Note: {app.adminNotes}

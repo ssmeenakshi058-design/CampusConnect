@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Calendar, MapPin, ShieldCheck } from 'lucide-react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import {
+  collection,
+  getCountFromServer,
+  getDocs,
+  limit,
+  query,
+  where,
+} from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import {
   CAMPUS_ASSETS,
+  DEMO_LISTING_NOTICE,
   EVENT_TYPE_LABELS,
   PLATFORM_DISCLAIMER,
   type CampusEvent,
@@ -18,39 +26,53 @@ export function LandingPage() {
   const { user, isAdmin } = useAuth();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [events, setEvents] = useState<CampusEvent[]>([]);
+  const [totalOpportunities, setTotalOpportunities] = useState<number>(0);
+  const [totalEvents, setTotalEvents] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const oppQ = query(collection(db, 'opportunities'), where('status', '==', 'verified'));
-    const evtQ = query(collection(db, 'events'), where('status', 'in', ['upcoming', 'completed']));
+    let active = true;
+    async function loadPublicPreview() {
+      try {
+        const oppQuery = query(
+          collection(db, 'opportunities'),
+          where('status', 'in', ['verified', 'demo_approved'])
+        );
+        const evtQuery = query(
+          collection(db, 'events'),
+          where('status', 'in', ['upcoming', 'demo_approved'])
+        );
 
-    const unsubOpps = onSnapshot(
-      oppQ,
-      (snap) => {
-        const list = snap.docs
+        const [oppSnap, evtSnap, oppCountSnap, evtCountSnap] = await Promise.all([
+          getDocs(query(oppQuery, limit(6))),
+          getDocs(query(evtQuery, limit(4))),
+          getCountFromServer(oppQuery).catch(() => null),
+          getCountFromServer(evtQuery).catch(() => null),
+        ]);
+
+        if (!active) return;
+
+        const oppList = oppSnap.docs
           .map((d) => d.data() as Opportunity)
-          .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
-        setOpportunities(list);
-        setLoading(false);
-      },
-      () => setLoading(false)
-    );
-
-    const unsubEvents = onSnapshot(
-      evtQ,
-      (snap) => {
-        const list = snap.docs
+          .sort((a, b) => Number(Boolean(a.isDemo)) - Number(Boolean(b.isDemo)));
+        const evtList = evtSnap.docs
           .map((d) => d.data() as CampusEvent)
-          .filter((e) => e.status === 'upcoming')
           .sort((a, b) => a.eventDate.localeCompare(b.eventDate));
-        setEvents(list);
-      },
-      () => undefined
-    );
 
+        setOpportunities(oppList);
+        setEvents(evtList);
+        setTotalOpportunities(oppCountSnap ? oppCountSnap.data().count : oppList.length);
+        setTotalEvents(evtCountSnap ? evtCountSnap.data().count : evtList.length);
+      } catch {
+        // Keep graceful fallback
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadPublicPreview();
     return () => {
-      unsubOpps();
-      unsubEvents();
+      active = false;
     };
   }, []);
 
@@ -160,15 +182,15 @@ export function LandingPage() {
           <div className="border-t border-slate-200 bg-slate-50/70">
             <div className="max-w-7xl mx-auto px-6 py-6 grid grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
-                <p className="text-xs text-slate-500">Verified Listings Live</p>
+                <p className="text-xs text-slate-500">Published Opportunities</p>
                 <p className="mt-1 text-2xl font-display font-bold text-slate-900 tabular-nums">
-                  {loading ? '—' : opportunities.length}
+                  {loading ? '—' : totalOpportunities.toLocaleString('en-IN')}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Upcoming Campus Events</p>
+                <p className="text-xs text-slate-500">Campus Events &amp; Workshops</p>
                 <p className="mt-1 text-2xl font-display font-bold text-slate-900 tabular-nums">
-                  {loading ? '—' : events.length}
+                  {loading ? '—' : totalEvents.toLocaleString('en-IN')}
                 </p>
               </div>
               <div>
@@ -325,6 +347,12 @@ export function LandingPage() {
                   key={evt.eventId}
                   className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col"
                 >
+                  {(evt.isDemo || evt.status === 'demo_approved') && (
+                    <div className="px-4 py-1.5 bg-amber-50 border-b border-amber-200 text-[11px] font-semibold text-amber-900 flex items-center justify-between gap-2">
+                      <span>{DEMO_LISTING_NOTICE}</span>
+                      <span className="font-mono text-[10px] text-amber-800 shrink-0">DEMO DATA</span>
+                    </div>
+                  )}
                   <div className="h-44 bg-slate-100 border-b border-slate-200">
                     <ImageWithFallback
                       src={evt.bannerUrl || CAMPUS_ASSETS.eventWorkshop}

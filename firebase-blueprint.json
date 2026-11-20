@@ -67,7 +67,7 @@
     },
     "Company": {
       "title": "Company",
-      "description": "Public company profile listed on CampusConnect; private contact details live in private subcollection.",
+      "description": "Partner or synthetic demo company profile listed on CampusConnect.",
       "type": "object",
       "properties": {
         "companyId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
@@ -77,7 +77,11 @@
         "website": { "type": "string", "maxLength": 400 },
         "location": { "type": "string", "minLength": 1, "maxLength": 140 },
         "logoUrl": { "type": "string", "maxLength": 1000 },
-        "verificationStatus": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "companySize": { "type": "string", "maxLength": 60 },
+        "verificationStatus": { "type": "string", "enum": ["pending", "verified", "rejected", "demo"] },
+        "isDemo": { "type": "boolean" },
+        "demoLabel": { "type": "string", "maxLength": 40 },
+        "seedVersion": { "type": "string", "maxLength": 40 },
         "createdBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
@@ -99,7 +103,7 @@
     },
     "Opportunity": {
       "title": "Opportunity",
-      "description": "Verified or pending internship, job, live project, or skill opportunity.",
+      "description": "Verified, pending, or clearly labelled synthetic demo opportunity listing.",
       "type": "object",
       "properties": {
         "opportunityId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
@@ -109,6 +113,8 @@
         "companyLogoUrl": { "type": "string", "maxLength": 1000 },
         "industry": { "type": "string", "minLength": 1, "maxLength": 100 },
         "category": { "type": "string", "enum": ["internship", "part_time", "entry_level", "live_project", "skill_building", "campus_event"] },
+        "subCategory": { "type": "string", "maxLength": 120 },
+        "opportunityType": { "type": "string", "maxLength": 80 },
         "description": { "type": "string", "minLength": 10, "maxLength": 4000 },
         "responsibilities": { "type": "array", "description": "Up to 15 bullet strings" },
         "requiredSkills": { "type": "array", "description": "Up to 20 skill strings" },
@@ -126,17 +132,72 @@
         "requiredDocuments": { "type": "array", "description": "Up to 10 document strings" },
         "additionalQuestions": { "type": "array", "description": "Up to 5 screening question strings" },
         "allowReapply": { "type": "boolean" },
-        "status": { "type": "string", "enum": ["pending", "verified", "rejected", "expired", "closed"] },
+        "status": { "type": "string", "enum": ["pending", "verified", "demo_approved", "rejected", "expired", "closed"] },
         "isVerified": { "type": "boolean" },
+        "isDemo": { "type": "boolean" },
+        "demoLabel": { "type": "string", "maxLength": 40 },
+        "seedVersion": { "type": "string", "maxLength": 40 },
+        "createdMonth": { "type": "string", "maxLength": 20 },
         "createdBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["opportunityId", "title", "companyId", "companyName", "industry", "category", "description", "responsibilities", "requiredSkills", "eligibility", "educationQualification", "workMode", "location", "isPaid", "stipendMin", "stipendMax", "stipendLabel", "duration", "deadline", "requiredDocuments", "additionalQuestions", "allowReapply", "status", "isVerified", "createdBy", "createdAt", "updatedAt"]
     },
+    "SkillProgram": {
+      "title": "SkillProgram",
+      "description": "Skill development training programs for students.",
+      "type": "object",
+      "properties": {
+        "programId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "opportunityId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 180 },
+        "providerName": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "companyId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "topic": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 10, "maxLength": 3000 },
+        "skills": { "type": "array", "description": "Up to 15 skill strings" },
+        "location": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "workMode": { "type": "string", "enum": ["on_site", "remote", "hybrid"] },
+        "isPaid": { "type": "boolean" },
+        "feeLabel": { "type": "string", "maxLength": 100 },
+        "duration": { "type": "string", "maxLength": 100 },
+        "deadline": { "type": "string", "maxLength": 30 },
+        "level": { "type": "string", "maxLength": 60 },
+        "status": { "type": "string", "enum": ["pending", "verified", "demo_approved", "closed"] },
+        "isDemo": { "type": "boolean" },
+        "demoLabel": { "type": "string", "maxLength": 40 },
+        "seedVersion": { "type": "string", "maxLength": 40 },
+        "createdMonth": { "type": "string", "maxLength": 20 },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["programId", "opportunityId", "title", "providerName", "companyId", "topic", "description", "skills", "location", "workMode", "isPaid", "feeLabel", "duration", "deadline", "level", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "DemoSeedMetadata": {
+      "title": "DemoSeedMetadata",
+      "description": "Metadata and dataset counts tracking the synthetic demo dataset seed.",
+      "type": "object",
+      "properties": {
+        "metaId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "seedVersion": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "companiesCount": { "type": "number" },
+        "internshipsCount": { "type": "number" },
+        "partTimeCount": { "type": "number" },
+        "entryLevelCount": { "type": "number" },
+        "liveProjectsCount": { "type": "number" },
+        "eventsCount": { "type": "number" },
+        "skillProgramsCount": { "type": "number" },
+        "totalDemoRecords": { "type": "number" },
+        "generatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["metaId", "seedVersion", "companiesCount", "internshipsCount", "partTimeCount", "entryLevelCount", "liveProjectsCount", "eventsCount", "skillProgramsCount", "totalDemoRecords", "generatedBy", "updatedAt"]
+    },
     "Application": {
       "title": "Application",
-      "description": "Student application submitted to a specific verified opportunity.",
+      "description": "Student application submitted to a verified or demo opportunity.",
       "type": "object",
       "properties": {
         "applicationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
@@ -158,6 +219,8 @@
         "additionalAnswers": { "type": "array", "description": "Up to 5 answers" },
         "status": { "type": "string", "enum": ["submitted", "under_review", "shortlisted", "interview_scheduled", "selected", "rejected", "withdrawn"] },
         "adminNotes": { "type": "string", "maxLength": 1500 },
+        "isDemo": { "type": "boolean" },
+        "demoLabel": { "type": "string", "maxLength": 40 },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -176,6 +239,7 @@
         "category": { "type": "string", "maxLength": 60 },
         "location": { "type": "string", "maxLength": 140 },
         "deadline": { "type": "string", "maxLength": 30 },
+        "isDemo": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["savedId", "studentUid", "opportunityId", "opportunityTitle", "companyName", "category", "location", "deadline", "createdAt"]
@@ -188,18 +252,25 @@
         "eventId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "title": { "type": "string", "minLength": 2, "maxLength": 180 },
         "eventType": { "type": "string", "enum": ["campus_event", "career_workshop", "placement_prep", "networking", "skill_session"] },
+        "subCategory": { "type": "string", "maxLength": 120 },
         "organizer": { "type": "string", "minLength": 1, "maxLength": 140 },
         "description": { "type": "string", "minLength": 10, "maxLength": 3000 },
         "venue": { "type": "string", "minLength": 1, "maxLength": 160 },
         "location": { "type": "string", "minLength": 1, "maxLength": 140 },
         "mode": { "type": "string", "enum": ["on_site", "online", "hybrid"] },
+        "isPaid": { "type": "boolean" },
+        "feeLabel": { "type": "string", "maxLength": 80 },
         "eventDate": { "type": "string", "maxLength": 30 },
         "eventTime": { "type": "string", "maxLength": 40 },
         "registrationDeadline": { "type": "string", "maxLength": 30 },
         "capacity": { "type": "number" },
         "registrationLink": { "type": "string", "maxLength": 400 },
         "bannerUrl": { "type": "string", "maxLength": 1000 },
-        "status": { "type": "string", "enum": ["upcoming", "completed", "cancelled"] },
+        "status": { "type": "string", "enum": ["upcoming", "completed", "cancelled", "demo_approved"] },
+        "isDemo": { "type": "boolean" },
+        "demoLabel": { "type": "string", "maxLength": 40 },
+        "seedVersion": { "type": "string", "maxLength": 40 },
+        "createdMonth": { "type": "string", "maxLength": 20 },
         "createdBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
@@ -259,7 +330,7 @@
     },
     "/companies/{companyId}": {
       "schema": { "$ref": "#/entities/Company" },
-      "description": "Partner companies listed on CampusConnect."
+      "description": "Partner and fictional demo companies listed on CampusConnect."
     },
     "/companies/{companyId}/private/{docId}": {
       "schema": { "$ref": "#/entities/CompanyPrivateContact" },
@@ -269,9 +340,17 @@
       "schema": { "$ref": "#/entities/Opportunity" },
       "description": "Internships, part-time jobs, entry-level roles, live projects, and skill opportunities."
     },
+    "/skillDevelopment/{programId}": {
+      "schema": { "$ref": "#/entities/SkillProgram" },
+      "description": "Skill development training programs."
+    },
+    "/demoSeedMetadata/{metaId}": {
+      "schema": { "$ref": "#/entities/DemoSeedMetadata" },
+      "description": "Seed version and dataset statistics for synthetic demo data."
+    },
     "/applications/{applicationId}": {
       "schema": { "$ref": "#/entities/Application" },
-      "description": "Student applications linked to verified opportunities."
+      "description": "Student applications linked to verified or demo opportunities."
     },
     "/savedOpportunities/{savedId}": {
       "schema": { "$ref": "#/entities/SavedOpportunity" },
